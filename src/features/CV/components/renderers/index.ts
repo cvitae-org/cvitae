@@ -1,0 +1,2 @@
+export { PaginatedRenderer } from "./PaginatedRenderer";
+

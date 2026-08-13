@@ -1,0 +1,131 @@
+import { z } from 'zod';
+
+type AiModule = typeof import('ai');
+type OpenAIImport = typeof import('@ai-sdk/openai');
+type OpenAIClient = ReturnType<OpenAIImport['createOpenAI']>;
+
+let aiModulePromise: Promise<AiModule> | null = null;
+const loadAiModule = async (): Promise<AiModule> => {
+  if (!aiModulePromise) {
+    aiModulePromise = import('ai');
+  }
+  return aiModulePromise;
+};
+
+let openaiInstancePromise: Promise<OpenAIClient> | null = null;
+const loadOpenAI = async (): Promise<OpenAIClient> => {
+  if (!openaiInstancePromise) {
+    openaiInstancePromise = import('@ai-sdk/openai').then(
+      (mod: OpenAIImport) => mod.createOpenAI()
+    );
+  }
+  return openaiInstancePromise;
+};
+
+export const maxDuration = 30;
+
+const loadMessagesForLocale = async (locale: string) => {
+  try {
+    const localeModule = await import(`@/../messages/${locale}.json`);
+    return localeModule.default ?? localeModule;
+  } catch (error) {
+    console.warn(`Falling back to English messages for unsupported locale "${locale}".`, error);
+    return (await import(`@/../messages/en.json`)).default;
+  }
+};
+
+const responseSchema = z.object({
+  title: z.string().describe('A professional job title that matches the position (e.g., "SENIOR FRONTEND DEVELOPER", "REACT SPECIALIST"). Should be concise and in uppercase.'),
+  summary: z.string().describe('A professional summary (2-3 sentences) highlighting relevant experience and skills for the specific job offer. Should be written in first person.'),
+});
+
+export async function POST(req: Request) {
+  try {
+    const { jobOffer, locale = 'en' } = await req.json();
+
+    if (!jobOffer || typeof jobOffer !== 'string') {
+      return Response.json(
+        { error: 'Job offer text is required' },
+        { status: 400 }
+      );
+    }
+
+    const [aiModule, openai] = await Promise.all([loadAiModule(), loadOpenAI()]);
+    const { generateObject } = aiModule;
+
+    // Load CV data from translations
+    const translations = await loadMessagesForLocale(locale);
+    const cvData = (translations as Record<string, unknown>).cv;
+
+    // Determine output language based on locale
+    const languageInstruction = locale === 'pl' 
+      ? 'IMPORTANT: Generate ALL content in Polish language.'
+      : locale === 'en' 
+        ? 'IMPORTANT: Generate ALL content in English language.'
+        : `IMPORTANT: Generate ALL content in the language matching locale "${locale}".`;
+
+    const { object } = await generateObject({
+      model: openai('gpt-4o'),
+      schema: responseSchema,
+      system: `You are an expert CV writer specializing in creating compelling, high-impact professional summaries that win interviews.
+
+${languageInstruction}
+      
+You have access to the candidate's CV data:
+${JSON.stringify(cvData, null, 2)}
+
+Your task is to generate:
+1. A job TITLE that precisely matches the target position. Keep it sharp, professional, and in UPPERCASE (e.g., "SENIOR FRONTEND DEVELOPER", "REACT SPECIALIST", "FULL STACK ENGINEER").
+2. A powerful SUMMARY (2-3 sentences) that immediately demonstrates the candidate's value for this specific role.
+
+CRITICAL GUIDELINES FOR THE SUMMARY:
+- Lead with IMPACT: Start with the most compelling achievement or strength
+- Use POWER WORDS: Employ strong action verbs (architected, spearheaded, transformed, optimized, delivered, drove, engineered)
+- Be SPECIFIC: Reference concrete technologies, methodologies, and achievements from the CV data
+- Show VALUE: Emphasize outcomes, results, and what makes this candidate exceptional
+- Match KEYWORDS: Naturally integrate key terms from the job offer
+- Avoid CLICHÉS: Never use generic phrases like "team player", "hard worker", "passionate about", or "detail-oriented"
+- Stay CONCISE: Every word must earn its place - be punchy and direct
+- Write in FIRST PERSON with confidence and authority
+- CREATE URGENCY: Make the reader want to interview this candidate immediately
+
+⚠️ ABSOLUTE REQUIREMENTS - NON-NEGOTIABLE:
+- ONLY mention technologies, skills, and tools that are EXPLICITLY present in the CV data provided above
+- NEVER claim expertise or experience in technologies not listed in the CV
+- NEVER fabricate achievements, metrics, or capabilities
+- If the job requires skills not in the CV, focus on transferable skills and relevant experience instead
+- Present the candidate as the best fit using ONLY their actual, verified skills and experience
+- Be truthful and authentic - confidence comes from real expertise, not made-up claims
+
+The title should reflect the target position, not necessarily the candidate's current title.
+
+Example of a WEAK summary:
+"I am a passionate developer with experience in React and JavaScript. I have worked on various projects and am a team player who loves to learn new technologies."
+
+Example of a STRONG summary (using ONLY skills from CV):
+"Full-stack engineer with 5+ years architecting scalable React applications serving 2M+ users. Delivered 40% performance improvements through advanced optimization techniques and led migration of legacy systems to modern TypeScript architecture. Expert in building robust, maintainable solutions with React, Node.js, and cloud infrastructure."
+
+Generate output in the specified language with the same level of impact and precision.`,
+      prompt: `Analyze this job offer and generate a customized, high-impact title and summary that positions the candidate as the ideal fit:
+
+JOB OFFER:
+${jobOffer}
+
+IMPORTANT REMINDERS:
+- Only reference skills, technologies, and experiences that are EXPLICITLY in the provided CV data
+- Never claim expertise in technologies not listed in the CV
+- Find the strongest overlap between the job requirements and the candidate's ACTUAL skills
+- If there's limited overlap, emphasize transferable skills and relevant achievements
+- Make it punchy, professional, and immediately compelling using ONLY verified skills and experience`,
+    });
+
+    return Response.json(object);
+  } catch (error) {
+    console.error('CV generation failed:', error);
+    return Response.json(
+      { error: 'Failed to generate CV content' },
+      { status: 500 }
+    );
+  }
+}
+

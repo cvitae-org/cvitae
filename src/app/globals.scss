@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+  }
+
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
+  body {
+    background-color: #06070b;
+    color: #fcfcfc;
+  }
+
+  /* CV font stack */
+  .font-cv {
+    font-family: "Myriad Pro", "Helvetica Neue", Arial, sans-serif;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
+
+/* Myriad Pro font-face (requires files in /public/fonts) */
+@font-face {
+  font-family: "Myriad Pro";
+  src:
+    url("/fonts/MyriadPro-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Myriad Pro";
+  src:
+    url("/fonts/MyriadPro-It.woff") format("woff");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Myriad Pro";
+  src:
+    url("/fonts/MyriadPro-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Myriad Pro";
+  src:
+    url("/fonts/MyriadPro-BoldIt.woff") format("woff");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* CV page helpers */
+#cv-root .cv-section {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+#cv-root .cv-canvas h1,
+#cv-root .cv-canvas h2,
+#cv-root .cv-canvas h3 {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+#cv-root .cv-canvas p,
+#cv-root .cv-canvas li {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  #cv-root .no-print {
+    display: none !important;
+  }
+
+  #cv-root .cv-canvas {
+    box-shadow: none !important;
+    border: none !important;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 28mm 22mm;
+  }
+
+  #cv-root .cv-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
