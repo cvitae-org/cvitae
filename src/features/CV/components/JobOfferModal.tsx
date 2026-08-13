@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useLocale } from "next-intl";
 import { useCVCustomization } from "../contexts/CVCustomizationContext";
+import { loadSettings, toRequestOverride } from "@/features/Settings/aiSettings";
 
 interface GeneratedContent {
   title: string;
@@ -56,7 +57,11 @@ export function JobOfferModal({ isOpen, onClose }: JobOfferModalProps) {
       const response = await fetch("/api/cv/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobOffer, locale }),
+        body: JSON.stringify({
+          jobOffer,
+          locale,
+          ai: toRequestOverride(loadSettings()),
+        }),
       });
 
       if (!response.ok) {

@@ -41,6 +41,12 @@ fine; only the AI customization request fails.
 - **EN/PL switcher** — swaps locale in place, keeping you on the same page.
 - **AI job-offer tailoring** — paste a job description; `gpt-4o` rewrites the title and summary
   using only skills present in the CV data, and you can apply or discard the result.
+- **Job research** — paste an offer URL and it is fetched, analysed into a structured record, and
+  tracked in a table (`src/features/JobResearch/`). Boards that render on the server work out of
+  the box. Run [cvitae-scrapper](../cvitae-scrapper) alongside and JavaScript-only boards work
+  too, with company, salary and skills taken from the board's own listing data rather than
+  inferred — set `SCRAPER_URL`, or leave it at the default `http://127.0.0.1:8787`. Research
+  falls back to the built-in fetch whenever the scraper is not running.
 
 ## Content
 

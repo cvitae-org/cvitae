@@ -1,8 +1,7 @@
 import { z } from 'zod';
+import { AiConfigError, resolveModel } from '@/libs/ai/providers';
 
 type AiModule = typeof import('ai');
-type OpenAIImport = typeof import('@ai-sdk/openai');
-type OpenAIClient = ReturnType<OpenAIImport['createOpenAI']>;
 
 let aiModulePromise: Promise<AiModule> | null = null;
 const loadAiModule = async (): Promise<AiModule> => {
@@ -12,17 +11,9 @@ const loadAiModule = async (): Promise<AiModule> => {
   return aiModulePromise;
 };
 
-let openaiInstancePromise: Promise<OpenAIClient> | null = null;
-const loadOpenAI = async (): Promise<OpenAIClient> => {
-  if (!openaiInstancePromise) {
-    openaiInstancePromise = import('@ai-sdk/openai').then(
-      (mod: OpenAIImport) => mod.createOpenAI()
-    );
-  }
-  return openaiInstancePromise;
-};
-
-export const maxDuration = 30;
+// Free-tier models answer in ~6s warm, but a queued cold start was measured at
+// 32s — over the previous 30s cap. 60s is the Vercel Hobby ceiling.
+export const maxDuration = 60;
 
 const loadMessagesForLocale = async (locale: string) => {
   try {
@@ -41,7 +32,7 @@ const responseSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const { jobOffer, locale = 'en' } = await req.json();
+    const { jobOffer, locale = 'en', ai } = await req.json();
 
     if (!jobOffer || typeof jobOffer !== 'string') {
       return Response.json(
@@ -50,7 +41,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const [aiModule, openai] = await Promise.all([loadAiModule(), loadOpenAI()]);
+    const [aiModule, { model }] = await Promise.all([
+      loadAiModule(),
+      resolveModel(ai ?? {})
+    ]);
     const { generateObject } = aiModule;
 
     // Load CV data from translations
@@ -65,7 +59,7 @@ export async function POST(req: Request) {
         : `IMPORTANT: Generate ALL content in the language matching locale "${locale}".`;
 
     const { object } = await generateObject({
-      model: openai('gpt-4o'),
+      model,
       schema: responseSchema,
       system: `You are an expert CV writer specializing in creating compelling, high-impact professional summaries that win interviews.
 
@@ -121,6 +115,15 @@ IMPORTANT REMINDERS:
 
     return Response.json(object);
   } catch (error) {
+    if (error instanceof AiConfigError) {
+      // Env var names stay in the server log rather than the response body.
+      console.error('AI provider is misconfigured:', error.message);
+      return Response.json(
+        { error: 'AI provider is not configured' },
+        { status: 500 }
+      );
+    }
+
     console.error('CV generation failed:', error);
     return Response.json(
       { error: 'Failed to generate CV content' },

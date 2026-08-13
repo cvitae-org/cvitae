@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.68",
+    "@ai-sdk/openai-compatible": "^1.0.48",
     "ai": "^5.0.94",
     "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",
