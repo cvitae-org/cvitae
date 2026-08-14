@@ -10,6 +10,7 @@ import { EditableText } from "../editing/EditableText";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { setLink, setPersonal, setRoleDescription, setSkills } from "../../store";
 import type { CvSkills } from "../../document";
+import { sectionOrder } from "../../order";
 
 /**
  * The skills strip, as three groups rather than five.
@@ -56,7 +57,7 @@ export function CVHeader() {
   const summaryOverride = customization?.customTexts.summary;
 
   return (
-    <MeasuredItem id="cv-header" section="header">
+    <MeasuredItem id="cv-header" section="header" order={sectionOrder("header")}>
       <div className="relative">
         {/* Main header: Portrait + Info */}
         <div className="relative grid grid-cols-1 md:grid-cols-[0.85fr_2fr] items-center">

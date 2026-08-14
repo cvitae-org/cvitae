@@ -16,6 +16,7 @@ import {
   removeHighlight,
   setHighlight,
 } from "../../store";
+import { entryOrder, sectionOrder, trailingOrder } from "../../order";
 
 /**
  * Work history: the largest section, and the only one with a list inside a list.
@@ -39,12 +40,17 @@ export function CVExperience() {
   return (
     <MeasuredSection
       id="experience"
+      order={sectionOrder("experience")}
       title={t("sections.experience")}
       repeatHeaderOnNewPage={false}
       headerClassName="bg-white px-4"
     >
       {experience.length === 0 ? (
-        <MeasuredItem id="exp-empty" section="experience">
+        <MeasuredItem
+          id="exp-empty"
+          section="experience"
+          order={entryOrder("experience", 0)}
+        >
           <div className="bg-white px-4 pb-2">
             <EmptySection
               hint="Job title — Company — Dates"
@@ -59,6 +65,7 @@ export function CVExperience() {
             key={`exp-${index}`}
             id={`exp-${index}`}
             section="experience"
+            order={entryOrder("experience", index)}
           >
             <div className="group bg-white px-4 space-y-2 pb-2">
               <div className="flex justify-between items-start gap-4">
@@ -190,7 +197,11 @@ export function CVExperience() {
       )}
 
       {experience.length > 0 && (
-        <MeasuredItem id="exp-add" section="experience">
+        <MeasuredItem
+            id="exp-add"
+            section="experience"
+            order={trailingOrder("experience")}
+          >
           <div className="bg-white px-4 pb-2">
             <EntryControls
               onAdd={() => addEntry(locale, "experience")}

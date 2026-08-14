@@ -9,6 +9,7 @@ import { EntryControls } from "../editing/EntryControls";
 import { EmptySection } from "../editing/EmptySection";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { addEntry, patchEntry, removeEntry } from "../../store";
+import { entryOrder, sectionOrder } from "../../order";
 
 /**
  * Spoken languages.
@@ -26,10 +27,15 @@ export function CVLanguages() {
   return (
     <MeasuredSection
       id="languages"
+      order={sectionOrder("languages")}
       title={t("sections.languages")}
       headerClassName="bg-white px-4"
     >
-      <MeasuredItem id="languages-content" section="languages">
+      <MeasuredItem
+        id="languages-content"
+        section="languages"
+        order={entryOrder("languages", 0)}
+      >
         <div className="bg-white px-4 pb-2 space-y-2">
           {languages.map((language, index) => (
             <div key={`lang-${index}`} className="group flex items-center gap-2">

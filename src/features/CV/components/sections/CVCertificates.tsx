@@ -4,6 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { MeasuredSection } from "../layout/MeasuredSection";
 import { MeasuredItem } from "../layout/MeasuredItem";
+import { entryOrder, sectionOrder } from "../../order";
 
 export function CVCertificates() {
   const t = useTranslations("cv");
@@ -16,6 +17,7 @@ export function CVCertificates() {
   return (
     <MeasuredSection 
       id="certificates" 
+      order={sectionOrder("certificates")}
       title={t("sections.certificates")}
       headerClassName="bg-white px-4"
     >
@@ -29,6 +31,7 @@ export function CVCertificates() {
           <MeasuredItem
             key={`cert-${index}`}
             id={`cert-${index}`}
+            order={entryOrder("certificates", index)}
             section="certificates"
           >
             <div className={`bg-white px-4 space-y-1 ${isLast(index) ? 'pb-2' : 'pb-2'}`}>
