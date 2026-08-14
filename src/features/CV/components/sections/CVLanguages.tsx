@@ -4,47 +4,66 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { MeasuredSection } from "../layout/MeasuredSection";
 import { MeasuredItem } from "../layout/MeasuredItem";
+import { EditableText } from "../editing/EditableText";
+import { EntryControls } from "../editing/EntryControls";
+import { useCvDocument } from "../../hooks/useCvDocument";
+import { addEntry, patchEntry, removeEntry } from "../../store";
 
+/**
+ * Spoken languages.
+ *
+ * This section previously hardcoded "Polish: Native" and read exactly one
+ * language out of the translations, because the translation file had no way to
+ * express a list of unknown length. Both go away with the document: the list is
+ * whatever the CV holds, including none.
+ */
 export function CVLanguages() {
   const t = useTranslations("cv");
-
-  // Get the number of languages
-  const languageCount = 1; // Based on the data structure (+ Polish native)
+  const { document, locale } = useCvDocument();
+  const languages = document.languages;
 
   return (
-    <MeasuredSection 
-      id="languages" 
+    <MeasuredSection
+      id="languages"
       title={t("sections.languages")}
       headerClassName="bg-white px-4"
     >
       <MeasuredItem id="languages-content" section="languages">
         <div className="bg-white px-4 pb-2 space-y-2">
-          {/* Polish (native) - hardcoded as it's not in translations */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-900 font-cv">
-              Polish:
-            </span>
-            <span className="text-xs text-gray-700 font-cv">Native</span>
-          </div>
+          {languages.map((language, index) => (
+            <div key={`lang-${index}`} className="group flex items-center gap-2">
+              <EditableText
+                value={language.name}
+                onCommit={(value) =>
+                  patchEntry(locale, "languages", index, { name: value })
+                }
+                placeholder="Language"
+                ariaLabel={`Language ${index + 1} name`}
+                className="text-xs font-semibold text-gray-900 font-cv"
+              />
+              <span className="text-xs font-semibold text-gray-900 font-cv">:</span>
+              <EditableText
+                value={language.level}
+                onCommit={(value) =>
+                  patchEntry(locale, "languages", index, { level: value })
+                }
+                placeholder="Level"
+                ariaLabel={`Language ${index + 1} level`}
+                className="text-xs text-gray-700 font-cv"
+              />
+              <EntryControls
+                onRemove={() => removeEntry(locale, "languages", index)}
+                removeLabel={`Remove ${language.name || "language"}`}
+              />
+            </div>
+          ))}
 
-          {/* Other languages from translations */}
-          {Array.from({ length: languageCount }).map((_, index) => {
-            const lang = `languages.${index}`;
-            const name = t(`${lang}.name`);
-            const level = t(`${lang}.level`);
-
-            return (
-              <div key={`lang-${index}`} className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-900 font-cv">
-                  {name}:
-                </span>
-                <span className="text-xs text-gray-700 font-cv">{level}</span>
-              </div>
-            );
-          })}
+          <EntryControls
+            onAdd={() => addEntry(locale, "languages")}
+            addLabel="Add a language"
+          />
         </div>
       </MeasuredItem>
     </MeasuredSection>
   );
 }
-
