@@ -19,6 +19,8 @@
  * the fault the migration needs to surface. Only silence means "fall back".
  */
 
+import { readSseStream } from './sse';
+
 const DEFAULT_URL = 'http://127.0.0.1:8788';
 
 /**
@@ -243,5 +245,139 @@ export const runCapability = async <T = Record<string, unknown>>(
   return {
     status: 'unavailable',
     detail: `cvitae-agent-runtime answered HTTP ${response.status} in an unrecognised shape.`
+  };
+};
+
+/** One finished input. Mirrors the runtime's `BatchItem`. */
+export type BatchItem<T = Record<string, unknown>> =
+  | {
+      index: number;
+      status: 'ok';
+      data: T;
+      degraded: string[];
+      elapsedMs: number;
+    }
+  | { index: number; status: 'failed'; reason: string; error: string };
+
+export type BatchSummary = {
+  completed: number;
+  failed: number;
+  elapsedMs: number;
+  aborted: boolean;
+};
+
+export type BatchOutcome =
+  | { status: 'ok'; summary: BatchSummary }
+  | { status: 'unavailable'; detail: string }
+  | { status: 'failed'; reason: string; detail: string };
+
+/**
+ * Runs a capability over many inputs, handing back each result as it arrives.
+ *
+ * There is deliberately no fallback here, unlike `runCapability`. Batching
+ * exists only in the runtime, and building a second implementation in cvitae to
+ * cover its absence would rebuild the thing this migration is removing — for a
+ * feature whose whole premise is running longer than a serverless request is
+ * allowed to. When the runtime is not up, the caller offers row-by-row analysis
+ * instead, which is what cvitae has always done.
+ *
+ * No overall timeout, for the same reason the runtime has none: any total would
+ * be a guess from the input count, and cutting off a run that is still making
+ * progress is the one failure a long unattended job must not have. `signal` is
+ * how a caller stops it, and stopping is safe — everything already emitted has
+ * been handed over.
+ */
+export const runBatchCapability = async <T = Record<string, unknown>>(
+  capability: string,
+  inputs: Record<string, unknown>[],
+  options: {
+    model?: RuntimeModel;
+    /** Bounds one input, not the batch. */
+    timeoutMs?: number;
+    concurrency?: number;
+    signal?: AbortSignal;
+  } = {},
+  onItem: (item: BatchItem<T>) => void | Promise<void>
+): Promise<BatchOutcome> => {
+  const base = baseUrl();
+
+  if (!base) {
+    return { status: 'unavailable', detail: 'RUNTIME_URL is empty.' };
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}/run-batch/${capability}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputs,
+        model: options.model,
+        timeoutMs: options.timeoutMs,
+        concurrency: options.concurrency
+      }),
+      cache: 'no-store',
+      signal: options.signal
+    });
+  } catch {
+    return {
+      status: 'unavailable',
+      detail: 'cvitae-agent-runtime is not running.'
+    };
+  }
+
+  // A refusal arrives before the stream opens and is ordinary JSON.
+  if (!response.ok || !response.body) {
+    const detail = await response
+      .json()
+      .then((body: { error?: string; reason?: string }) => body)
+      .catch(() => null);
+
+    if (detail?.error) {
+      return {
+        status: 'failed',
+        reason: detail.reason ?? 'error',
+        detail: detail.error
+      };
+    }
+
+    return {
+      status: 'unavailable',
+      detail: `cvitae-agent-runtime answered HTTP ${response.status} in an unrecognised shape.`
+    };
+  }
+
+  let summary: BatchSummary | null = null;
+  let failure: { reason: string; detail: string } | null = null;
+
+  await readSseStream(response.body, async (frame) => {
+    if (frame.event === 'result') {
+      await onItem(JSON.parse(frame.data) as BatchItem<T>);
+      return;
+    }
+
+    if (frame.event === 'done') {
+      summary = JSON.parse(frame.data) as BatchSummary;
+      return;
+    }
+
+    if (frame.event === 'error') {
+      const body = JSON.parse(frame.data) as { error?: string; reason?: string };
+      failure = {
+        reason: body.reason ?? 'error',
+        detail: body.error ?? 'The batch could not be started.'
+      };
+    }
+  });
+
+  if (failure) return { status: 'failed', ...(failure as { reason: string; detail: string }) };
+
+  // The stream ended without a summary: the runtime died, or something between
+  // here and it closed the connection. Whatever was already emitted is kept —
+  // the caller has it — so this reports how far it got rather than failing.
+  return {
+    status: 'ok',
+    summary: summary ?? { completed: 0, failed: 0, elapsedMs: 0, aborted: true }
   };
 };

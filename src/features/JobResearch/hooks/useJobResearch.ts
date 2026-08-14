@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useLocale } from 'next-intl';
+import { readSseStream } from '@/libs/runtime/sse';
 import type { BoardFacts, JobRecord, OfferAnalysis } from '../types';
 import { MANUAL_LIST_ID } from '../types';
 import { createId, findByUrl, normalizeUrl } from '../storage';
@@ -13,6 +14,13 @@ import {
   replaceRecord,
   subscribe
 } from '../store';
+
+export type BatchProgress = {
+  total: number;
+  /** Rows analysed and already written to storage. */
+  done: number;
+  failed: number;
+};
 
 export type ResearchError = {
   message: string;
@@ -70,6 +78,10 @@ export const useJobResearch = () => {
 
   const [isResearching, setIsResearching] = useState(false);
   const [error, setError] = useState<ResearchError | null>(null);
+
+  /** Progress of a running batch, or null when none is. */
+  const [batch, setBatch] = useState<BatchProgress | null>(null);
+  const batchAbort = useRef<AbortController | null>(null);
 
   const research = useCallback(
     async ({
@@ -177,6 +189,143 @@ export const useJobResearch = () => {
     [locale, manualRecords, allRecords]
   );
 
+  /**
+   * Analyses every row in the current tab that carries stored text.
+   *
+   * Each row is written to storage the moment its result arrives, which is the
+   * whole reason this streams rather than returning a list. A batch of forty
+   * against a local model runs for half an hour; if the tab is closed at row
+   * twenty-nine, twenty-eight rows are analysed and saved, and running it again
+   * picks up only what is left. Nothing is resumed because nothing needs to be.
+   *
+   * Rows without stored text are skipped rather than fetched. Re-reading forty
+   * boards would put the slowest and least reliable part of the pipeline in
+   * front of the part being batched, and a board that blocks us halfway through
+   * would strand the run for a reason that has nothing to do with the model.
+   */
+  const researchMany = useCallback(
+    async (targets: JobRecord[]) => {
+      const analysable = targets.filter((record) => record.offer_text?.trim());
+
+      if (analysable.length === 0) {
+        setError({
+          message:
+            'None of these rows kept their posting text, so there is nothing to analyse without re-fetching. Use "Re-run" on a row to fetch it again.',
+          needsManualText: false
+        });
+        return null;
+      }
+
+      const controller = new AbortController();
+      setBatch({ total: analysable.length, done: 0, failed: 0 });
+      setError(null);
+      batchAbort.current = controller;
+
+      // Read once, up front. `allRecords` is a snapshot from render, and the
+      // store changes under this loop as each row lands — looking rows up in
+      // the stale copy is fine, writing from it would undo the previous write.
+      const byId = new Map(analysable.map((record) => [record.id, record]));
+
+      try {
+        const response = await fetch('/api/jobs/research/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            offers: analysable.map((record) => ({
+              id: record.id,
+              offerText: record.offer_text,
+              boardFacts: record.board_facts
+            })),
+            locale,
+            ai: toRequestOverride(loadSettings())
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok || !response.body) {
+          const detail = await response.json().catch(() => null);
+          setError({
+            message: detail?.error ?? 'Could not start the batch.',
+            needsManualText: false
+          });
+          return null;
+        }
+
+        await readSseStream(response.body, (frame) => {
+          if (frame.event === 'error') {
+            const payload = JSON.parse(frame.data) as { error?: string };
+            setError({
+              message: payload.error ?? 'The batch failed.',
+              needsManualText: false
+            });
+            return;
+          }
+
+          if (frame.event !== 'row') return;
+
+          const row = JSON.parse(frame.data) as {
+            id: string;
+            status: 'ok' | 'failed';
+            record?: OfferAnalysis & {
+              source_note: string;
+              checked_at: string;
+              locale: string;
+            };
+          };
+
+          const existing = byId.get(row.id);
+          if (!existing) return;
+
+          if (row.status === 'failed' || !row.record) {
+            setBatch((state) =>
+              state ? { ...state, failed: state.failed + 1 } : state
+            );
+            return;
+          }
+
+          // Written immediately, one row at a time. The user's own columns —
+          // status, notes, which tab it lives in — and the stored scrape are
+          // carried over rather than replaced: a re-analysis refreshes what the
+          // model read, not what the person recorded.
+          replaceRecord({
+            ...existing,
+            ...row.record,
+            id: existing.id,
+            listId: existing.listId,
+            status: existing.status,
+            notes: existing.notes,
+            source_url: existing.source_url,
+            offer_text: existing.offer_text,
+            board_facts: existing.board_facts
+          });
+
+          setBatch((state) =>
+            state ? { ...state, done: state.done + 1 } : state
+          );
+        });
+
+        return true;
+      } catch (cause) {
+        // An abort is the user stopping it, not a failure. Everything already
+        // written stays written.
+        if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+          setError({
+            message: 'Lost contact with the analysis service.',
+            needsManualText: false
+          });
+        }
+        return null;
+      } finally {
+        batchAbort.current = null;
+        setBatch(null);
+      }
+    },
+    [locale]
+  );
+
+  /** Stops a batch. What has already landed is already saved. */
+  const stopBatch = useCallback(() => batchAbort.current?.abort(), []);
+
   const clearError = useCallback(() => setError(null), []);
 
   return {
@@ -187,6 +336,9 @@ export const useJobResearch = () => {
     hydrated,
     research,
     isResearching,
+    researchMany,
+    stopBatch,
+    batch,
     error,
     clearError
   };

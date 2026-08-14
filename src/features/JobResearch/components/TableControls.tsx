@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { ApplicationStatus, WorkMode } from '../types';
+import type { BatchProgress } from '../hooks/useJobResearch';
 import type {
   FacetOptions,
   Filters,
@@ -29,6 +30,16 @@ type TableControlsProps = {
   total: number;
   activeFilters: number;
   onReset: () => void;
+  /**
+   * Rows in this tab that still have empty analysed fields but kept their
+   * posting text. Zero hides the action, which is the honest state for a tab of
+   * rows researched one at a time — they are already analysed.
+   */
+  analysable: number;
+  onAnalyseAll: () => void;
+  /** Progress of a running batch, or null. */
+  batch: BatchProgress | null;
+  onStopBatch: () => void;
 };
 
 /** One toggle in a facet row. Shows its count so a dead end is visible before clicking. */
@@ -90,7 +101,11 @@ export function TableControls({
   shown,
   total,
   activeFilters,
-  onReset
+  onReset,
+  analysable,
+  onAnalyseAll,
+  batch,
+  onStopBatch
 }: TableControlsProps) {
   // Collapsed by default: the facets run to a dozen pills on a scraped tab, and
   // most visits are a search-and-sort rather than a faceted narrowing.
@@ -283,20 +298,53 @@ export function TableControls({
         </div>
       )}
 
-      {(activeFilters > 0 || shown !== total) && (
-        <div className="mt-2.5 flex items-center justify-between border-t border-gray-100 pt-2 text-[11px] text-gray-500">
+      {(activeFilters > 0 || shown !== total || analysable > 0 || batch) && (
+        <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
           <span className="tabular-nums">
             Showing {shown} of {total}
           </span>
-          {activeFilters > 0 && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="font-medium text-gray-500 transition-colors hover:text-gray-800"
-            >
-              Reset filters
-            </button>
-          )}
+
+          <div className="flex items-center gap-3">
+            {batch ? (
+              <>
+                <span className="tabular-nums text-gray-600">
+                  Analysing {batch.done + batch.failed} of {batch.total}
+                  {batch.failed > 0 ? ` · ${batch.failed} failed` : ''}
+                </span>
+                {/* Safe to offer, and worth offering: every row that has
+                    already landed is written, so stopping costs only what has
+                    not been done yet. */}
+                <button
+                  type="button"
+                  onClick={onStopBatch}
+                  className="font-medium text-gray-500 transition-colors hover:text-gray-800"
+                >
+                  Stop
+                </button>
+              </>
+            ) : (
+              analysable > 0 && (
+                <button
+                  type="button"
+                  onClick={onAnalyseAll}
+                  title="Fill the analysed fields for every row that kept its posting text. No re-fetching."
+                  className="font-medium text-gray-500 transition-colors hover:text-gray-800"
+                >
+                  Analyse {analysable} unanalysed
+                </button>
+              )
+            )}
+
+            {activeFilters > 0 && (
+              <button
+                type="button"
+                onClick={onReset}
+                className="font-medium text-gray-500 transition-colors hover:text-gray-800"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import { TableControls } from './components/TableControls';
 import { ImportOffers } from './components/ImportOffers';
 import { clearList, removeList, renameList, setActiveList } from './store';
 import { toCsv } from './storage';
+import { NOT_STATED } from './types';
 import type { JobRecord } from './types';
 import { SheetNavLink } from '@/components/SheetNavLink';
 import { Sheet } from '@/components/Sheet';
@@ -35,6 +36,9 @@ export function JobResearch() {
     hydrated,
     research,
     isResearching,
+    researchMany,
+    stopBatch,
+    batch,
     error,
     clearError
   } = useJobResearch();
@@ -53,6 +57,26 @@ export function JobResearch() {
     activeFilters,
     reset: resetFilters
   } = useTableView(records);
+
+  /**
+   * Rows in this tab that an import left blank and that still hold their
+   * posting, which is exactly what the batch can fill.
+   *
+   * `role_profile` is the test because it is the field a board never publishes
+   * and only a reading of the text produces — `company` and `salary` arrive
+   * populated from the scrape, so neither distinguishes an analysed row from an
+   * imported one. Taken from `records` rather than `visible`: a filter narrows
+   * what is being looked at, not what needs work, and having the count jump
+   * around as pills are toggled would make it read like a filtered subtotal.
+   */
+  const unanalysed = useMemo(
+    () =>
+      records.filter(
+        (record) =>
+          record.role_profile === NOT_STATED && Boolean(record.offer_text?.trim())
+      ),
+    [records]
+  );
 
   const activeList = lists.find((list) => list.id === activeListId);
 
@@ -298,6 +322,10 @@ export function JobResearch() {
                   total={records.length}
                   activeFilters={activeFilters}
                   onReset={resetFilters}
+                  analysable={unanalysed.length}
+                  onAnalyseAll={() => researchMany(unanalysed)}
+                  batch={batch}
+                  onStopBatch={stopBatch}
                 />
               )}
 
