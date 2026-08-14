@@ -22,7 +22,21 @@
  */
 
 import { workModes, type OfferAnalysis, type WorkMode } from '@/features/JobResearch/types';
-import type { BoardOffer } from './scraperClient';
+
+/**
+ * The subset that matters here, so this works on both a live scrape and the
+ * facts stored on an imported row. `BoardOffer` satisfies it structurally.
+ */
+export type StatedFacts = {
+  company?: string;
+  title?: string;
+  location?: string;
+  work_mode?: string;
+  salary?: string;
+  seniority?: string;
+  start_date?: string;
+  required_skills?: string[];
+};
 
 /** The strings the analysis uses for "the offer did not say". */
 const isAbsent = (value: unknown): boolean =>
@@ -93,7 +107,7 @@ export type BoardFactsResult = {
  */
 export const applyBoardFacts = (
   analysis: Record<string, unknown>,
-  offer: BoardOffer
+  offer: StatedFacts
 ): BoardFactsResult => {
   const merged = { ...analysis };
   const applied: string[] = [];
@@ -116,6 +130,7 @@ export const applyBoardFacts = (
   replace('position', offer.title);
   replace('salary', offer.salary);
   replace('seniority', offer.seniority);
+  replace('start_date', offer.start_date);
   fill('location', offer.location);
 
   // Guarded rather than assigned: work_mode is an enum the UI switches on, and

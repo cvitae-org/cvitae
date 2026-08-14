@@ -62,10 +62,66 @@ export type OfferAnalysis = {
   required_skills: string[];
 };
 
+/**
+ * What the board itself stated, as collected by cvitae-scrapper.
+ *
+ * Kept alongside the analysis rather than only folded into it, because the two
+ * disagree and the board wins. Re-analysing a row produces a fresh set of
+ * inferred values, and without this the board's exact salary would be replaced
+ * by the model's reading of the same text.
+ */
+export type BoardFacts = {
+  company?: string;
+  title?: string;
+  location?: string;
+  work_mode?: string;
+  salary?: string;
+  seniority?: string;
+  start_date?: string;
+  required_skills?: string[];
+};
+
+/**
+ * A tab in the research table.
+ *
+ * Each imported file becomes one of these, so a scraper run can be read on its
+ * own instead of dissolving into everything collected before it.
+ */
+export type ResearchList = {
+  id: string;
+  name: string;
+  /** ISO timestamp. Orders the strip, and survives a rename. */
+  createdAt: string;
+};
+
+/**
+ * The tab that always exists: offers researched from a URL land in whichever
+ * tab is open, and this is the one open by default. It is also where records
+ * written before tabs existed are migrated to — so its id is fixed rather than
+ * generated, and it cannot be closed.
+ */
+export const MANUAL_LIST_ID = 'manual';
+export const MANUAL_LIST_NAME = 'Manual';
+
+export type ResearchState = {
+  records: JobRecord[];
+  lists: ResearchList[];
+  activeListId: string;
+};
+
 export type JobRecord = OfferAnalysis & {
   id: string;
+  /** The tab this offer belongs to. Exactly one — tabs partition, not filter. */
+  listId: string;
   source_url: string;
   source_mode: SourceMode;
+  /**
+   * The offer text, kept only on imported rows. It is what lets "Analyse" fill
+   * the inferred fields without going back to the board — which matters when
+   * the posting has since expired or the board has started refusing us.
+   */
+  offer_text?: string;
+  board_facts?: BoardFacts;
   /** Populated when the fetch degraded, e.g. bot-blocked and pasted by hand. */
   source_note: string;
   /** ISO timestamp of the analysis. */

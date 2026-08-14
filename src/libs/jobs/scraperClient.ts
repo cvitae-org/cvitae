@@ -34,6 +34,8 @@ export type BoardOffer = {
   contract_type?: string;
   seniority?: string;
   posted_at?: string;
+  /** When the work begins ("ASAP") — not to be confused with posted_at. */
+  start_date?: string;
   required_skills?: string[];
   text: string;
 };

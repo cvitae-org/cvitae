@@ -18,12 +18,25 @@ const CVCustomizationContext = createContext<CVCustomizationContextValue | null>
 
 interface CVCustomizationProviderProps {
   children: ReactNode;
+  /**
+   * Texts the CV should open with, for callers that already have a generated
+   * pair — the submitting flow renders a CV it tailored earlier, rather than
+   * one the user is customising here and now.
+   *
+   * Read once, as the initial state. A caller whose texts change should key
+   * the provider, which is what the CV itself needs anyway: the layout has to
+   * re-measure when the summary's length changes.
+   */
+  initialTexts?: { title: string; summary: string } | null;
 }
 
-export function CVCustomizationProvider({ children }: CVCustomizationProviderProps) {
+export function CVCustomizationProvider({
+  children,
+  initialTexts = null,
+}: CVCustomizationProviderProps) {
   const [customTexts, setCustomTextsState] = useState<CustomTexts>({
-    title: null,
-    summary: null,
+    title: initialTexts?.title || null,
+    summary: initialTexts?.summary || null,
   });
 
   const setCustomTexts = useCallback((texts: { title: string; summary: string }) => {

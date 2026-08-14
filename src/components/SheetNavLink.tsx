@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Link } from "@/libs/i18n/routing";
 
 type SheetNavLinkProps = {
-  href: "/research" | "/settings" | "/";
+  href: "/research" | "/submitting" | "/settings" | "/";
   title: string;
   children: ReactNode;
 };

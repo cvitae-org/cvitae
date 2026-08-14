@@ -1,27 +1,36 @@
-import type { JobRecord, WorkMode } from './types';
-import { isApplicationStatus, NOT_STATED, workModes } from './types';
+import type { JobRecord, ResearchList, ResearchState, WorkMode } from './types';
+import {
+  isApplicationStatus,
+  MANUAL_LIST_ID,
+  MANUAL_LIST_NAME,
+  NOT_STATED,
+  workModes
+} from './types';
 
 /**
- * localStorage persistence for researched offers.
+ * Reading and writing the shape of researched offers.
  *
- * The payload is versioned so a future schema change can migrate rather than
- * silently reading stale shapes. Reads are defensive: a corrupt or hand-edited
- * entry is dropped instead of crashing the table.
+ * Where it is kept — IndexedDB, having been moved off localStorage — belongs
+ * to `createPersistedStore`; this file only decides what a stored payload
+ * means. The payload is versioned so a future schema change can migrate rather
+ * than silently reading stale shapes, and reads are defensive: a corrupt or
+ * hand-edited entry is dropped instead of crashing the table.
  */
 
 // The key is a namespace, not the schema marker — renaming it would orphan
-// every record already in the browser. `version` inside the payload is what
-// decides whether a stored shape needs migrating.
-const STORAGE_KEY = 'cvitae.job-research.v1';
-const STORAGE_VERSION = 2;
+// every record already in the browser, and it is also the localStorage key the
+// data is migrated out of. `version` inside the payload is what decides
+// whether a stored shape needs migrating.
+export const STORAGE_KEY = 'cvitae.job-research.v1';
+const STORAGE_VERSION = 3;
 
 type StoredPayload = {
   version: number;
   records: JobRecord[];
+  /** Absent before version 3, when every record lived in one flat table. */
+  lists?: ResearchList[];
+  activeListId?: string;
 };
-
-export const canUseStorage = (): boolean =>
-  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
 /** Trailing slashes and tracking params should not create duplicate rows. */
 export const normalizeUrl = (raw: string): string => {
@@ -58,6 +67,32 @@ const isRecord = (value: unknown): value is JobRecord => {
 
 const isWorkMode = (value: unknown): value is WorkMode =>
   typeof value === 'string' && (workModes as readonly string[]).includes(value);
+
+const isList = (value: unknown): value is ResearchList => {
+  if (typeof value !== 'object' || value === null) return false;
+  const list = value as Partial<ResearchList>;
+  return typeof list.id === 'string' && typeof list.name === 'string';
+};
+
+/**
+ * The fallback tab.
+ *
+ * Built fresh on each call so no caller can mutate a shared object, and dated
+ * to the epoch because it genuinely does precede every tab the user makes —
+ * which keeps it first when the strip is ordered by age.
+ */
+export const createManualList = (): ResearchList => ({
+  id: MANUAL_LIST_ID,
+  name: MANUAL_LIST_NAME,
+  createdAt: new Date(0).toISOString()
+});
+
+/** Guarantees the fallback tab exists and leads the strip. */
+const withManualFirst = (lists: ResearchList[]): ResearchList[] => {
+  const manual =
+    lists.find((list) => list.id === MANUAL_LIST_ID) ?? createManualList();
+  return [manual, ...lists.filter((list) => list.id !== MANUAL_LIST_ID)];
+};
 
 /** Stamped on migrated rows: their blanks are our gap, not the offer's. */
 const LEGACY_NOTE =
@@ -99,6 +134,7 @@ const migrate = (stored: JobRecord): JobRecord => {
 
   return {
     id: stored.id,
+    listId: MANUAL_LIST_ID,
     status: stored.status,
     company: text('company'),
     company_type: text('company_type'),
@@ -126,40 +162,65 @@ const migrate = (stored: JobRecord): JobRecord => {
   };
 };
 
-export const loadRecords = (): JobRecord[] => {
-  if (!canUseStorage()) return [];
+export const emptyState = (): ResearchState => ({
+  records: [],
+  lists: [createManualList()],
+  activeListId: MANUAL_LIST_ID
+});
 
+/**
+ * Turns a stored payload into a state the table can render.
+ *
+ * Takes the parsed value rather than reading it: under IndexedDB the payload
+ * comes back as a structured clone with no JSON step, and the same function
+ * still has to cope with the `JSON.parse` result of a localStorage payload
+ * being migrated across.
+ */
+export const parseState = (stored: unknown): ResearchState => {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    const parsed = stored as StoredPayload;
+    if (!parsed || !Array.isArray(parsed.records)) return emptyState();
 
-    const parsed = JSON.parse(raw) as StoredPayload;
-    if (!parsed || !Array.isArray(parsed.records)) return [];
+    const version =
+      typeof parsed.version === 'number' ? parsed.version : 1;
 
-    // Drop anything that is not even identifiable; migrate the rest, since an
-    // older payload version means every record in it predates the current shape.
-    const stale = parsed.version !== STORAGE_VERSION;
-    const records = parsed.records.filter(isRecord);
-    return stale ? records.map(migrate) : records;
+    // Drop anything that is not even identifiable, then migrate only what
+    // actually predates the current record shape. The check is `< 2` rather
+    // than `!== STORAGE_VERSION`: version 3 changed the payload around the
+    // records, not the records themselves, and running `migrate` over a
+    // version 2 record would stamp it with the legacy note and throw away the
+    // stored offer text that "Analyse" depends on.
+    const identified = parsed.records.filter(isRecord);
+    const records = version < 2 ? identified.map(migrate) : identified;
+
+    const lists = withManualFirst(
+      Array.isArray(parsed.lists) ? parsed.lists.filter(isList) : []
+    );
+    const known = new Set(lists.map((list) => list.id));
+
+    // Version 2 and earlier had no tabs at all, and a hand-edited payload can
+    // point a record at a tab that is gone. Either way the offer belongs
+    // somewhere visible rather than in a tab nobody can open.
+    const placed = records.map((record) =>
+      known.has(record.listId) ? record : { ...record, listId: MANUAL_LIST_ID }
+    );
+
+    const activeListId =
+      typeof parsed.activeListId === 'string' && known.has(parsed.activeListId)
+        ? parsed.activeListId
+        : MANUAL_LIST_ID;
+
+    return { records: placed, lists, activeListId };
   } catch (error) {
     console.warn('Could not read stored job research; starting empty.', error);
-    return [];
+    return emptyState();
   }
 };
 
-export const saveRecords = (records: JobRecord[]): boolean => {
-  if (!canUseStorage()) return false;
-
-  try {
-    const payload: StoredPayload = { version: STORAGE_VERSION, records };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    return true;
-  } catch (error) {
-    // Quota exceeded is the realistic failure here; the caller surfaces it.
-    console.error('Could not save job research.', error);
-    return false;
-  }
-};
+export const serializeState = (state: ResearchState): StoredPayload => ({
+  version: STORAGE_VERSION,
+  ...state
+});
 
 export const findByUrl = (
   records: JobRecord[],

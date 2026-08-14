@@ -1,6 +1,6 @@
 import { AiConfigError, resolveModel } from '@/libs/ai/providers';
 import { resolveOffer } from '@/libs/jobs/resolveOffer';
-import { applyBoardFacts } from '@/libs/jobs/boardFacts';
+import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import type { BoardOffer } from '@/libs/jobs/scraperClient';
 import { analyzeOffer, OfferAnalysisError } from '@/libs/jobs/analyzeOffer';
 
@@ -31,7 +31,18 @@ const isRateLimit = (error: unknown): boolean => {
 
 export async function POST(req: Request) {
   try {
-    const { url, offerText, locale = 'en', ai } = await req.json();
+    const {
+      url,
+      offerText,
+      locale = 'en',
+      ai,
+      // Set when the text is a stored scrape rather than something a person
+      // pasted. Both skip the fetch, but only one of them is "manual".
+      textSource,
+      // The board's own figures, replayed from an imported row so that
+      // re-analysing it cannot lose them.
+      boardFacts
+    } = await req.json();
 
     const hasUrl = typeof url === 'string' && url.trim().length > 0;
     const hasText = typeof offerText === 'string' && offerText.trim().length > 0;
@@ -43,8 +54,10 @@ export async function POST(req: Request) {
       );
     }
 
+    const fromScraper = textSource === 'scraper';
+
     let text = hasText ? offerText.trim() : '';
-    let sourceMode: 'url' | 'manual' = hasText ? 'manual' : 'url';
+    let sourceMode: 'url' | 'manual' = hasText && !fromScraper ? 'manual' : 'url';
     let sourceNote = '';
     let sourceUrl = hasUrl ? url.trim() : '';
     /** Set when cvitae-scrapper read the offer and handed back board data. */
@@ -73,8 +86,12 @@ export async function POST(req: Request) {
       board = outcome.board;
     }
 
-    if (hasText && hasUrl) {
+    if (hasText && hasUrl && !fromScraper) {
       sourceNote = 'Offer text pasted manually; URL kept for reference.';
+    }
+
+    if (fromScraper) {
+      sourceNote = 'Analysed from the stored scrape; the board was not re-read.';
     }
 
     const override = ai ?? {};
@@ -107,8 +124,15 @@ export async function POST(req: Request) {
     // from the same text. Applied after analysis rather than before because a
     // degraded agent fills its fields with "Not stated", and those are exactly
     // the gaps worth covering.
-    const { analysis, applied } = board
-      ? applyBoardFacts(inferred, board)
+    //
+    // `board` comes from a live scrape; `boardFacts` is the same information
+    // replayed by an imported row that is being analysed from stored text. One
+    // or the other, never both.
+    const stated: StatedFacts | undefined =
+      board ?? (fromScraper && boardFacts ? (boardFacts as StatedFacts) : undefined);
+
+    const { analysis, applied } = stated
+      ? applyBoardFacts(inferred, stated)
       : { analysis: inferred, applied: [] as string[] };
 
     if (applied.length > 0) {
