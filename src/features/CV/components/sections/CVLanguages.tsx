@@ -6,6 +6,7 @@ import { MeasuredSection } from "../layout/MeasuredSection";
 import { MeasuredItem } from "../layout/MeasuredItem";
 import { EditableText } from "../editing/EditableText";
 import { EntryControls } from "../editing/EntryControls";
+import { EmptySection } from "../editing/EmptySection";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { addEntry, patchEntry, removeEntry } from "../../store";
 
@@ -58,10 +59,18 @@ export function CVLanguages() {
             </div>
           ))}
 
-          <EntryControls
-            onAdd={() => addEntry(locale, "languages")}
-            addLabel="Add a language"
-          />
+          {languages.length === 0 ? (
+            <EmptySection
+              hint="Language — Level"
+              onCreate={() => addEntry(locale, "languages")}
+              label="Add the first language"
+            />
+          ) : (
+            <EntryControls
+              onAdd={() => addEntry(locale, "languages")}
+              addLabel="Add a language"
+            />
+          )}
         </div>
       </MeasuredItem>
     </MeasuredSection>
