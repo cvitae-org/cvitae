@@ -112,29 +112,6 @@ export async function POST(req: Request) {
     /** Set when cvitae-scrapper read the offer and handed back board data. */
     let board: BoardOffer | undefined;
 
-    // Pasted text wins: if the user supplied it, the fetch already failed or
-    // was never wanted, so there is nothing to gain from hitting the board.
-    if (!hasText && hasUrl) {
-      const outcome = await resolveOffer(sourceUrl);
-
-      if (outcome.status !== 'ok') {
-        // The fetch failure is the answer, not a 500 — the client turns this
-        // into a "paste it manually" prompt with the real reason attached.
-        // The scraper's refusals (bot-blocked, robots-disallowed, a board it
-        // will not crawl) reach the user through the same path, and its
-        // messages already end with what to do about it.
-        return Response.json(
-          { error: outcome.detail, reason: outcome.status, needsManualText: true },
-          { status: 422 }
-        );
-      }
-
-      text = outcome.text;
-      sourceUrl = outcome.finalUrl;
-      sourceMode = 'url';
-      board = outcome.board;
-    }
-
     if (hasText && hasUrl && !fromScraper) {
       sourceNote = 'Offer text pasted manually; URL kept for reference.';
     }
@@ -142,6 +119,12 @@ export async function POST(req: Request) {
     if (fromScraper) {
       sourceNote = 'Analysed from the stored scrape; the board was not re-read.';
     }
+
+    // The board's own figures as replayed by an imported row. A *live* scrape
+    // produces the same thing, but that now happens inside the runtime, which
+    // applies them itself — so this is only for text arriving without a fetch.
+    const stated: StatedFacts | undefined =
+      fromScraper && boardFacts ? (boardFacts as StatedFacts) : undefined;
 
     const override = ai ?? {};
 
@@ -159,10 +142,20 @@ export async function POST(req: Request) {
     let inferred: Record<string, unknown>;
     let degraded: string[];
     let analysedBy = '';
+    let viaRuntime = false;
 
+    // The URL goes to the runtime rather than being resolved here: it owns
+    // fetchOffer, the scraper client and the board-fact overlay now, and
+    // resolving locally first would mean the text was read by whichever copy
+    // happened to run — the thing this migration exists to stop.
     const delegated = await runCapability<Record<string, unknown>>(
       'analyze_offer',
-      { offerText: text, locale },
+      {
+        offerText: text || undefined,
+        url: text ? undefined : sourceUrl,
+        boardFacts: stated,
+        locale
+      },
       {
         // cvitae's own AI_PROVIDER backs the browser's choice, so that starting
         // the runtime changes where the analysis runs and not which provider it
@@ -175,6 +168,20 @@ export async function POST(req: Request) {
         timeoutMs: remainingBudgetMs(startedAt)
       }
     );
+
+    if (delegated.status === 'failed' && delegated.reason === 'unreadable_source') {
+      // Not an error to report as one: the board refused, or published nothing
+      // a server can read. The client turns this into a paste prompt, and the
+      // runtime's message already ends with what the user can do about it.
+      return Response.json(
+        {
+          error: delegated.detail,
+          reason: 'unreadable_source',
+          needsManualText: true
+        },
+        { status: 422 }
+      );
+    }
 
     if (delegated.status === 'failed') {
       // The runtime answered, and the answer was no. Re-running the offer
@@ -199,6 +206,7 @@ export async function POST(req: Request) {
     if (delegated.status === 'ok') {
       inferred = delegated.result.data;
       degraded = delegated.result.degraded;
+      viaRuntime = true;
       analysedBy = `Analysed by cvitae-agent-runtime in ${(delegated.result.elapsedMs / 1000).toFixed(1)}s.`;
     } else {
       // Not running, or switched off. Says nothing about the offer, so this is
@@ -208,6 +216,25 @@ export async function POST(req: Request) {
       console.info(
         `cvitae-agent-runtime unavailable (${delegated.detail}); analysing in-process.`
       );
+
+      // Acquisition too, now that the runtime owns it. Only this path still
+      // reads a board from inside cvitae, and only because there is no runtime
+      // to ask — the copies here go when the fallback does.
+      if (!text && sourceUrl) {
+        const outcome = await resolveOffer(sourceUrl);
+
+        if (outcome.status !== 'ok') {
+          return Response.json(
+            { error: outcome.detail, reason: outcome.status, needsManualText: true },
+            { status: 422 }
+          );
+        }
+
+        text = outcome.text;
+        sourceUrl = outcome.finalUrl;
+        sourceMode = 'url';
+        board = outcome.board;
+      }
 
       const [aiModule, { model, providerId }] = await Promise.all([
         loadAiModule(),
@@ -233,20 +260,29 @@ export async function POST(req: Request) {
       degraded = local.degraded;
     }
 
-    // The board stated these outright, so they replace what the model inferred
-    // from the same text. Applied after analysis rather than before because a
-    // degraded agent fills its fields with "Not stated", and those are exactly
-    // the gaps worth covering.
-    //
-    // `board` comes from a live scrape; `boardFacts` is the same information
-    // replayed by an imported row that is being analysed from stored text. One
-    // or the other, never both.
-    const stated: StatedFacts | undefined =
-      board ?? (fromScraper && boardFacts ? (boardFacts as StatedFacts) : undefined);
+    // Only the fallback applies these here. The runtime has its own overlay
+    // step and has already done it, reporting which keys it touched — applying
+    // them a second time would be harmless but would double the note.
+    const localStated: StatedFacts | undefined = board ?? stated;
 
-    const { analysis, applied } = stated
-      ? applyBoardFacts(inferred, stated)
-      : { analysis: inferred, applied: [] as string[] };
+    const { analysis, applied } =
+      viaRuntime || !localStated
+        ? {
+            analysis: inferred,
+            applied: (inferred.board_facts_applied as string[] | undefined) ?? []
+          }
+        : applyBoardFacts(inferred, localStated);
+
+    // The runtime reports its own provenance in the record; cvitae's response
+    // shape carries those as top-level fields, so they are lifted out rather
+    // than left to leak into the row as analysis keys.
+    delete analysis.board_facts_applied;
+    const runtimeUrl = analysis.source_url;
+    delete analysis.source_url;
+    delete analysis.source_mode;
+    delete analysis.via;
+
+    if (typeof runtimeUrl === 'string' && runtimeUrl) sourceUrl = runtimeUrl;
 
     // Recorded on the row while both implementations exist, because the whole
     // point of running them side by side is being able to tell which one
