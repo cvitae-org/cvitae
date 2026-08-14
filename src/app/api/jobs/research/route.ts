@@ -1,8 +1,9 @@
-import { AiConfigError, resolveModel } from '@/libs/ai/providers';
+import { AiConfigError, resolveModel, resolveProviderId } from '@/libs/ai/providers';
 import { resolveOffer } from '@/libs/jobs/resolveOffer';
 import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import type { BoardOffer } from '@/libs/jobs/scraperClient';
 import { analyzeOffer, OfferAnalysisError } from '@/libs/jobs/analyzeOffer';
+import { runCapability, toRuntimeModel } from '@/libs/runtime/client';
 
 type AiModule = typeof import('ai');
 
@@ -19,17 +20,65 @@ const loadAiModule = async (): Promise<AiModule> => {
 // to render leaves the five analysis calls room to finish inside the window.
 export const maxDuration = 60;
 
+/**
+ * What is left of this route's budget, for handing to the runtime.
+ *
+ * The runtime has no idea it is being called from a serverless function with a
+ * hard ceiling, so the deadline has to travel with the request. Subtracting the
+ * time already spent matters because the scrape above it can legitimately take
+ * 30 of the 60 seconds, and a run started with the full budget would be killed
+ * by the platform mid-flight — the provider requests already paid for, and
+ * nobody left to receive the answer.
+ *
+ * The two seconds held back are for getting the response home.
+ */
+const remainingBudgetMs = (startedAt: number): number =>
+  Math.max(5_000, maxDuration * 1_000 - 2_000 - (Date.now() - startedAt));
+
+const RATE_LIMITED = /rate limit|429|quota/i;
+
 /** Providers surface quota exhaustion as a 429 somewhere in the error chain. */
 const isRateLimit = (error: unknown): boolean => {
   if (typeof error !== 'object' || error === null) return false;
   const candidate = error as { statusCode?: number; message?: string };
-  return (
-    candidate.statusCode === 429 ||
-    /rate limit|429|quota/i.test(candidate.message ?? '')
-  );
+  return candidate.statusCode === 429 || RATE_LIMITED.test(candidate.message ?? '');
 };
 
+/**
+ * The same condition, reached by a different route.
+ *
+ * Delegated to the runtime, a quota refusal is no longer an exception with a
+ * status code on it — it is a step that failed, with the provider's complaint
+ * carried in the message. The user's situation is identical and so is the only
+ * useful thing to tell them, so it is worth recognising in both forms rather
+ * than letting the delegated path degrade to "the analysis failed".
+ */
+const detailIsRateLimit = (detail: string): boolean => RATE_LIMITED.test(detail);
+
+/** What a refusal from the runtime means to an HTTP caller. */
+const statusForRuntimeReason = (reason: string): number => {
+  switch (reason) {
+    case 'invalid_input':
+      return 400;
+    case 'timeout':
+    case 'aborted':
+      return 504;
+    // A capability this route names and the runtime does not have is a version
+    // mismatch between the two repositories — cvitae's bug, not the caller's.
+    case 'unknown_capability':
+    case 'ai_not_configured':
+      return 500;
+    default:
+      return 502;
+  }
+};
+
+const RATE_LIMIT_MESSAGE =
+  'Daily free-model limit reached. It resets at 00:00 UTC — or switch AI_PROVIDER / add credits to keep going.';
+
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+
   try {
     const {
       url,
@@ -100,25 +149,89 @@ export async function POST(req: Request) {
     // text — so it runs entirely on the extraction model, and the main model
     // setting belongs to CV customisation. Falling back to `modelId` keeps
     // single-model setups working without configuring anything.
-    const [aiModule, { model, providerId }] = await Promise.all([
-      loadAiModule(),
-      resolveModel({
-        ...override,
-        modelId: override.extractionModelId || override.modelId
-      })
-    ]);
-    const { generateObject, NoObjectGeneratedError } = aiModule;
+    //
+    // Two implementations of that sit behind this now. cvitae-agent-runtime
+    // owns the capability and is tried first; the in-process pipeline below is
+    // what runs when it is not up. The five agents, their prompts and their
+    // token ceilings are the same code in both places, carried over verbatim,
+    // so the two should agree — and while both exist, disagreeing on a real
+    // offer is the thing worth looking at.
+    let inferred: Record<string, unknown>;
+    let degraded: string[];
+    let analysedBy = '';
 
-    const { analysis: inferred, degraded } = await analyzeOffer({
-      model,
-      offerText: text,
-      locale,
-      // A local server is one GPU: overlapping calls only contend. Hosted
-      // providers run them genuinely in parallel.
-      concurrency: providerId === 'local' ? 1 : 5,
-      generateObject,
-      isNoObjectError: (error) => NoObjectGeneratedError.isInstance(error)
-    });
+    const delegated = await runCapability<Record<string, unknown>>(
+      'analyze_offer',
+      { offerText: text, locale },
+      {
+        // cvitae's own AI_PROVIDER backs the browser's choice, so that starting
+        // the runtime changes where the analysis runs and not which provider it
+        // reaches. The two `.env` files disagree by default, and without this
+        // the disagreement is settled silently in the runtime's favour.
+        model: toRuntimeModel(override, 'extraction', resolveProviderId()),
+        // What is left of this route's own ceiling. The scrape above may have
+        // spent 30s of it, and a runtime still working after the route has been
+        // cut off is quota spent on an answer nobody can receive.
+        timeoutMs: remainingBudgetMs(startedAt)
+      }
+    );
+
+    if (delegated.status === 'failed') {
+      // The runtime answered, and the answer was no. Re-running the offer
+      // through cvitae's own provider would either fail identically or succeed
+      // against a different model than the user configured — which hides the
+      // fault at exactly the point the two paths are meant to be comparable.
+      const rateLimited = detailIsRateLimit(delegated.detail);
+
+      console.error(
+        `cvitae-agent-runtime refused the analysis (${delegated.reason}): ${delegated.detail}`
+      );
+
+      return Response.json(
+        {
+          error: rateLimited ? RATE_LIMIT_MESSAGE : delegated.detail,
+          reason: rateLimited ? 'rate_limited' : delegated.reason
+        },
+        { status: rateLimited ? 429 : statusForRuntimeReason(delegated.reason) }
+      );
+    }
+
+    if (delegated.status === 'ok') {
+      inferred = delegated.result.data;
+      degraded = delegated.result.degraded;
+      analysedBy = `Analysed by cvitae-agent-runtime in ${(delegated.result.elapsedMs / 1000).toFixed(1)}s.`;
+    } else {
+      // Not running, or switched off. Says nothing about the offer, so this is
+      // the path cvitae has always taken. Logged rather than surfaced: for
+      // anyone who has not started the runtime, it is not a fault and does not
+      // belong in the table.
+      console.info(
+        `cvitae-agent-runtime unavailable (${delegated.detail}); analysing in-process.`
+      );
+
+      const [aiModule, { model, providerId }] = await Promise.all([
+        loadAiModule(),
+        resolveModel({
+          ...override,
+          modelId: override.extractionModelId || override.modelId
+        })
+      ]);
+      const { generateObject, NoObjectGeneratedError } = aiModule;
+
+      const local = await analyzeOffer({
+        model,
+        offerText: text,
+        locale,
+        // A local server is one GPU: overlapping calls only contend. Hosted
+        // providers run them genuinely in parallel.
+        concurrency: providerId === 'local' ? 1 : 5,
+        generateObject,
+        isNoObjectError: (error) => NoObjectGeneratedError.isInstance(error)
+      });
+
+      inferred = local.analysis;
+      degraded = local.degraded;
+    }
 
     // The board stated these outright, so they replace what the model inferred
     // from the same text. Applied after analysis rather than before because a
@@ -134,6 +247,14 @@ export async function POST(req: Request) {
     const { analysis, applied } = stated
       ? applyBoardFacts(inferred, stated)
       : { analysis: inferred, applied: [] as string[] };
+
+    // Recorded on the row while both implementations exist, because the whole
+    // point of running them side by side is being able to tell which one
+    // produced a given record when the two disagree. It goes when the
+    // in-process path does.
+    if (analysedBy) {
+      sourceNote = [sourceNote, analysedBy].filter(Boolean).join(' ');
+    }
 
     if (applied.length > 0) {
       sourceNote = [sourceNote, `From the board's own listing: ${applied.join(', ')}.`]
