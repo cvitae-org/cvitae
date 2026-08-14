@@ -175,7 +175,14 @@ export async function POST(req: Request) {
         send('error', { error: outcome.detail, reason: outcome.status });
       }
 
-      controller.close();
+      try {
+        controller.close();
+      } catch {
+        // Already cancelled, because the browser went away — the ordinary end
+        // of a batch someone stopped. Closing a cancelled stream throws, and an
+        // unhandled rejection here would be reported as a route failure for
+        // what is the expected outcome of pressing Stop.
+      }
     }
   });
 

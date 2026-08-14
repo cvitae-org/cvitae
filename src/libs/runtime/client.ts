@@ -266,6 +266,14 @@ export type BatchSummary = {
   aborted: boolean;
 };
 
+/** What a batch that never started, or was stopped at once, amounts to. */
+const EMPTY_SUMMARY: BatchSummary = {
+  completed: 0,
+  failed: 0,
+  elapsedMs: 0,
+  aborted: true
+};
+
 export type BatchOutcome =
   | { status: 'ok'; summary: BatchSummary }
   | { status: 'unavailable'; detail: string }
@@ -320,10 +328,20 @@ export const runBatchCapability = async <T = Record<string, unknown>>(
       cache: 'no-store',
       signal: options.signal
     });
-  } catch {
+  } catch (error) {
+    // A cancellation is not the runtime being absent, and reporting it as one
+    // would tell a user who just pressed Stop to go and start a service that is
+    // running perfectly well.
+    if (options.signal?.aborted) {
+      return { status: 'ok', summary: EMPTY_SUMMARY };
+    }
+
     return {
       status: 'unavailable',
-      detail: 'cvitae-agent-runtime is not running.'
+      detail:
+        error instanceof Error && error.name === 'TimeoutError'
+          ? 'cvitae-agent-runtime stopped responding.'
+          : 'cvitae-agent-runtime is not running.'
     };
   }
 
@@ -351,25 +369,41 @@ export const runBatchCapability = async <T = Record<string, unknown>>(
   let summary: BatchSummary | null = null;
   let failure: { reason: string; detail: string } | null = null;
 
-  await readSseStream(response.body, async (frame) => {
-    if (frame.event === 'result') {
-      await onItem(JSON.parse(frame.data) as BatchItem<T>);
-      return;
-    }
+  // Wrapped, because a cancelled stream rejects here rather than ending. Every
+  // item already handed to `onItem` has been dealt with by the caller — written
+  // to storage, in cvitae's case — so an interrupted read is a short batch, not
+  // a failed one, and must not throw away the report of how far it got.
+  try {
+    await readSseStream(response.body, async (frame) => {
+      if (frame.event === 'result') {
+        await onItem(JSON.parse(frame.data) as BatchItem<T>);
+        return;
+      }
 
-    if (frame.event === 'done') {
-      summary = JSON.parse(frame.data) as BatchSummary;
-      return;
-    }
+      if (frame.event === 'done') {
+        summary = JSON.parse(frame.data) as BatchSummary;
+        return;
+      }
 
-    if (frame.event === 'error') {
-      const body = JSON.parse(frame.data) as { error?: string; reason?: string };
-      failure = {
-        reason: body.reason ?? 'error',
-        detail: body.error ?? 'The batch could not be started.'
+      if (frame.event === 'error') {
+        const body = JSON.parse(frame.data) as { error?: string; reason?: string };
+        failure = {
+          reason: body.reason ?? 'error',
+          detail: body.error ?? 'The batch could not be started.'
+        };
+      }
+    });
+  } catch (error) {
+    if (!options.signal?.aborted) {
+      return {
+        status: 'unavailable',
+        detail:
+          error instanceof Error
+            ? `The batch stream ended early: ${error.message}`
+            : 'The batch stream ended early.'
       };
     }
-  });
+  }
 
   if (failure) return { status: 'failed', ...(failure as { reason: string; detail: string }) };
 

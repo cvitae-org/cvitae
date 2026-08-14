@@ -9,6 +9,7 @@ import { createId, findByUrl, normalizeUrl } from '../storage';
 import { loadSettings, toRequestOverride } from '@/features/Settings/aiSettings';
 import {
   addRecord,
+  getResearchState,
   getServerSnapshot,
   getSnapshot,
   replaceRecord,
@@ -221,10 +222,13 @@ export const useJobResearch = () => {
       setError(null);
       batchAbort.current = controller;
 
-      // Read once, up front. `allRecords` is a snapshot from render, and the
-      // store changes under this loop as each row lands — looking rows up in
-      // the stale copy is fine, writing from it would undo the previous write.
-      const byId = new Map(analysable.map((record) => [record.id, record]));
+      // Which rows were asked for is fixed at the start; what those rows
+      // *contain* is not, and must be read again when each result lands. A
+      // batch of forty runs for half an hour, and a status or a note changed
+      // while it is running would otherwise be reverted the moment that row
+      // came back — the model's fields overwriting the person's, silently,
+      // half an hour after they typed them.
+      const requested = new Set(analysable.map((record) => record.id));
 
       try {
         const response = await fetch('/api/jobs/research/batch', {
@@ -273,7 +277,13 @@ export const useJobResearch = () => {
             };
           };
 
-          const existing = byId.get(row.id);
+          // Read live, not from the snapshot above. A row deleted or moved
+          // while the batch ran is respected rather than resurrected.
+          if (!requested.has(row.id)) return;
+
+          const existing = getResearchState().records.find(
+            (item) => item.id === row.id
+          );
           if (!existing) return;
 
           if (row.status === 'failed' || !row.record) {
