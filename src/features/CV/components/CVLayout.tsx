@@ -104,62 +104,82 @@ function CVLayoutInternal({
   const status = measurementContext.getMeasurementStatus();
   const isLoading = status !== "complete" || !isCalculated;
 
-  // Calculate page breaks when measurement is complete
+  // Recalculated whenever the measurements change, not only the first time.
+  //
+  // The `!isCalculated` guard that used to be here made pagination a one-shot
+  // computation, which was correct while the CV was static and is wrong now it
+  // can be edited: adding a job would never find a page to live on. It is safe
+  // to re-run because `measurementContext` only changes identity when an item
+  // actually re-registers, and `MeasuredItem` re-registers only when its
+  // rendered height or text changed — so an unchanged render settles here
+  // rather than looping.
   useEffect(() => {
-    if (status === "complete" && !isCalculated) {
-      const items = measurementContext.getAllItems();
-      
-      if (items.length > 0) {
-        const breaks = calculatePageBreaks(items, A4_CONTENT_HEIGHT);
-        const map = new Map(items.map((item) => [item.id, item]));
-        
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setPageBreaks(breaks);
-        setItemsMap(map);
-        setIsCalculated(true);
-        onMeasurementComplete?.(breaks);
-      }
+    if (status !== "complete") return;
+
+    const items = measurementContext.getAllItems();
+    if (items.length === 0) return;
+
+    const breaks = calculatePageBreaks(items, A4_CONTENT_HEIGHT);
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPageBreaks(breaks);
+    setItemsMap(new Map(items.map((item) => [item.id, item])));
+
+    if (!isCalculated) {
+      setIsCalculated(true);
+      // Only on the first pass. This is what reveals the document; firing it on
+      // every keystroke would restart whatever the caller does with it.
+      onMeasurementComplete?.(breaks);
     }
   }, [status, isCalculated, measurementContext, onMeasurementComplete]);
 
-  // Phase 1: Measurement - render children in hidden div to collect measurements
-  // Also show loading skeleton to maintain layout space
-  if (isLoading) {
-    return (
-      <>
-        {/* Hidden measurement container */}
-        <div
-          data-cv-container
-          style={{
-            position: "absolute",
-            left: "-9999px",
-            top: 0,
-            visibility: "hidden",
-            pointerEvents: "none",
-          }}
-          aria-hidden="true"
-        >
-          {/* Ensure measurement happens at the same width/padding as the real A4 page.
-              Otherwise text wraps differently and measured heights are wrong. */}
-          <div
-            style={{
-              width: `${A4_DIMENSIONS.width}px`,
-              padding: `${A4_DIMENSIONS.padding}px`,
-              boxSizing: "border-box",
-            }}
-          >
-            {children}
-          </div>
-        </div>
-        
-        {/* Visible loading skeleton */}
-        <CVLoadingSkeleton />
-      </>
-    );
-  }
+  return (
+    <>
+      {/*
+        The measurement container, now mounted for the whole life of the page
+        rather than only until the first pagination.
 
-  // Phase 2: Rendering - render in paginated format
-  return <PaginatedRenderer pageBreaks={pageBreaks} items={itemsMap} />;
+        It used to be unmounted once measuring finished, which made the visible
+        CV a snapshot of the first render — the sections stopped existing, so
+        nothing could re-render and no edit could reach the page. Keeping it
+        mounted is what makes the document live: these are the components that
+        subscribe to the store, and each re-registers its subtree when its
+        content changes, which is what `PaginatedRenderer` then draws.
+
+        It stays hidden, off-screen and non-interactive, so the only copy a
+        person can reach is the paginated one.
+      */}
+      <div
+        data-cv-container
+        style={{
+          position: "absolute",
+          left: "-9999px",
+          top: 0,
+          visibility: "hidden",
+          pointerEvents: "none",
+        }}
+        aria-hidden="true"
+      >
+        {/* Ensure measurement happens at the same width/padding as the real A4 page.
+            Otherwise text wraps differently and measured heights are wrong. */}
+        <div
+          style={{
+            width: `${A4_DIMENSIONS.width}px`,
+            padding: `${A4_DIMENSIONS.padding}px`,
+            boxSizing: "border-box",
+          }}
+        >
+          {children}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <CVLoadingSkeleton />
+      ) : (
+        <PaginatedRenderer pageBreaks={pageBreaks} items={itemsMap} />
+      )}
+    </>
+  );
 }
 
 /**
