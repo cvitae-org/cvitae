@@ -6,22 +6,54 @@ import { MeasuredItem } from "../layout/MeasuredItem";
 import { MaskedPortrait } from "../common/MaskedPortrait";
 import { MaskedBackground } from "../common/MaskedBackground";
 import { useCVCustomizationOptional } from "../../contexts/CVCustomizationContext";
+import { EditableText } from "../editing/EditableText";
+import { useCvDocument } from "../../hooks/useCvDocument";
+import { setLink, setPersonal, setRoleDescription, setSkills } from "../../store";
+import type { CvSkills } from "../../document";
 
-const skillCategories = [
-  { key: "languages", label: "Languages" },
+/**
+ * The skills strip, as three groups rather than five.
+ *
+ * The translation file had `languages, frameworks, libraries, styling, other`;
+ * the document has three arrays. That is not a loss of information so much as a
+ * loss of a distinction the document never drew — "Styling & Design" and "Other
+ * Technologies" are both libraries and tools, and an extraction step that had to
+ * decide which of five buckets Tailwind belongs in would get it wrong more often
+ * than it got it right. They fold into one group, which is also what the runtime
+ * extracts into, so nothing has to be translated between the two.
+ */
+const skillGroups = [
+  { key: "programming_languages", label: "Languages" },
   { key: "frameworks", label: "Frameworks" },
-  { key: "libraries", label: "Libraries & Tools" },
-  { key: "styling", label: "Styling & Design" },
-  { key: "other", label: "Other Technologies" },
+  { key: "libraries_and_tools", label: "Libraries & Tools" },
+] as const satisfies readonly { key: keyof CvSkills; label: string }[];
+
+/**
+ * The links, which are edited as text.
+ *
+ * Rendered as spans rather than anchors while editing exists: an anchor whose
+ * text is `contentEditable` navigates when you click it, which is precisely the
+ * gesture that is supposed to place a caret. The addresses are still stored, so
+ * restoring click-through — or emitting real anchors only in the PDF, where
+ * nobody is editing — is a change here and nowhere else.
+ */
+const linkFields = [
+  { key: "website", placeholder: "yoursite.com" },
+  { key: "github", placeholder: "github.com/you" },
+  { key: "linkedin", placeholder: "linkedin.com/in/you" },
 ] as const;
 
 export function CVHeader() {
   const t = useTranslations("cv");
   const customization = useCVCustomizationOptional();
+  const { document, locale } = useCvDocument();
 
-  // Use custom texts if available, otherwise fall back to translations
-  const displayTitle = customization?.customTexts.title ?? t("title");
-  const displaySummary = customization?.customTexts.summary ?? t("summary");
+  // A tailored CV overrides these per application. When one is active the field
+  // is shown but not editable: what is on screen is the generated value, and
+  // typing into it would silently edit the stored CV underneath instead — a
+  // change the user could not see they had made.
+  const titleOverride = customization?.customTexts.title;
+  const summaryOverride = customization?.customTexts.summary;
 
   return (
     <MeasuredItem id="cv-header" section="header">
@@ -29,7 +61,7 @@ export function CVHeader() {
         {/* Main header: Portrait + Info */}
         <div className="relative grid grid-cols-1 md:grid-cols-[0.85fr_2fr] items-center">
           {/* Gap cover for PDF rendering - placed at grid level to avoid cell clipping */}
-          <div 
+          <div
             className="hidden md:block absolute top-0 bottom-0 w-[6px] bg-white z-10"
             style={{ left: 'calc(29.8% - 5px)' }}
           />
@@ -41,7 +73,7 @@ export function CVHeader() {
               <MaskedPortrait
                 src="/me2.png"
                 hoverSrc="/me.png"
-                alt={t("name")}
+                alt={document.personal.name || t("sections.contact")}
                 maskSrc="/portrait-mask.svg"
                 className="relative -top-[3px]"
               />
@@ -50,56 +82,76 @@ export function CVHeader() {
 
           <div className="relative space-y-2 pl-1 text-center md:text-left bg-white h-full rounded-tr-md flex flex-col justify-center">
             <div>
-              <h1 className="text-2xl sm:text-3xl md:text-3xl font-bold text-gray-900 font-cv leading-tight">
-                {t("name")}
-              </h1>
-              <h2 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 tracking-[0.16em] font-cv">
-                {displayTitle}
-              </h2>
+              <EditableText
+                as="h1"
+                value={document.personal.name}
+                onCommit={(value) => setPersonal(locale, { name: value })}
+                placeholder="Your name"
+                ariaLabel="Full name"
+                className="text-2xl sm:text-3xl md:text-3xl font-bold text-gray-900 font-cv leading-tight"
+              />
+              {titleOverride ? (
+                <h2 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 tracking-[0.16em] font-cv">
+                  {titleOverride}
+                </h2>
+              ) : (
+                <EditableText
+                  as="h2"
+                  value={document.skills.role}
+                  onCommit={(value) => setSkills(locale, { role: value })}
+                  placeholder="Your role"
+                  ariaLabel="Professional title"
+                  className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 tracking-[0.16em] font-cv"
+                />
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-3 gap-y-1 text-xs sm:text-sm text-gray-800 font-cv">
-              <a
-                href={`mailto:${t("contact.email")}`}
+              <EditableText
+                value={document.personal.email}
+                onCommit={(value) => setPersonal(locale, { email: value })}
+                placeholder="you@example.com"
+                ariaLabel="Email address"
                 className="hover:text-sky-700 transition-colors"
-              >
-                {t("contact.email")}
-              </a>
+              />
               <span className="hidden sm:inline text-gray-400">/</span>
-              <span>{t("contact.phone")}</span>
+              <EditableText
+                value={document.personal.phone}
+                onCommit={(value) => setPersonal(locale, { phone: value })}
+                placeholder="Phone number"
+                ariaLabel="Phone number"
+              />
             </div>
 
-            <p className="text-[11px] pr-4 sm:text-xs md:text-sm text-gray-700 italic leading-relaxed font-cv max-w-xl mx-auto md:mx-0">
-              {displaySummary}
-            </p>
+            {summaryOverride ? (
+              <p className="text-[11px] pr-4 sm:text-xs md:text-sm text-gray-700 italic leading-relaxed font-cv max-w-xl mx-auto md:mx-0">
+                {summaryOverride}
+              </p>
+            ) : (
+              <EditableText
+                as="p"
+                multiline
+                value={document.role_description}
+                onCommit={(value) => setRoleDescription(locale, value)}
+                placeholder="A short professional summary — what you do, and what you are good at."
+                ariaLabel="Professional summary"
+                className="text-[11px] pr-4 sm:text-xs md:text-sm text-gray-700 italic leading-relaxed font-cv max-w-xl mx-auto md:mx-0"
+              />
+            )}
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-[10px] sm:text-[11px] text-gray-600 font-cv">
-            <a
-                href={`https://${t("contact.website")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-sky-700 transition-colors underline underline-offset-2"
-              >
-                {t("contact.website")}
-              </a>
-              <span className="text-gray-400">•</span>
-              <a
-                href={`https://${t("contact.github")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-sky-700 transition-colors underline underline-offset-2"
-              >
-                {t("contact.github")}
-              </a>
-              <span className="text-gray-400">•</span>
-              <a
-                href={`https://${t("contact.linkedin")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-sky-700 transition-colors underline underline-offset-2"
-              >
-                {t("contact.linkedin")}
-              </a>
+              {linkFields.map((field, index) => (
+                <React.Fragment key={field.key}>
+                  {index > 0 && <span className="text-gray-400">•</span>}
+                  <EditableText
+                    value={document.personal.links[field.key] ?? ""}
+                    onCommit={(value) => setLink(locale, field.key, value)}
+                    placeholder={field.placeholder}
+                    ariaLabel={`${field.key} link`}
+                    className="hover:text-sky-700 transition-colors underline underline-offset-2"
+                  />
+                </React.Fragment>
+              ))}
             </div>
           </div>
         </div>
@@ -107,14 +159,31 @@ export function CVHeader() {
         {/* Skills - Below header, right-aligned, horizontal flow */}
         <div className="bg-white px-4 py-3">
           <div className="flex flex-wrap justify-end gap-x-6 gap-y-1.5 text-right">
-            {skillCategories.map((category) => (
-              <div key={category.key} className="flex items-baseline gap-1.5">
+            {skillGroups.map((group) => (
+              <div key={group.key} className="flex items-baseline gap-1.5">
                 <span className="text-[11px] text-gray-400 uppercase tracking-wide font-cv whitespace-nowrap">
-                  {category.label}
+                  {group.label}
                 </span>
-                <span className="text-[11px] text-gray-700 font-cv">
-                  {t(`skills.${category.key}`)}
-                </span>
+                {/*
+                  Edited as one comma-separated line, which is how it already
+                  reads. Splitting on commit rather than offering a control per
+                  skill keeps a twenty-item list editable in one gesture, and the
+                  separator is the one people already type.
+                */}
+                <EditableText
+                  value={document.skills[group.key].join(", ")}
+                  onCommit={(value) =>
+                    setSkills(locale, {
+                      [group.key]: value
+                        .split(",")
+                        .map((skill) => skill.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="Add skills, separated by commas"
+                  ariaLabel={group.label}
+                  className="text-[11px] text-gray-700 font-cv"
+                />
               </div>
             ))}
           </div>
