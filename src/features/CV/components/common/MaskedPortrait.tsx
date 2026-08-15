@@ -22,8 +22,6 @@ interface MaskedPortraitProps {
  * applied programmatically rather than using CSS mask-image (which html2canvas doesn't support).
  */
 
-/** How much of the portrait's height dissolves at the bottom. See `fadeBottom`. */
-const PORTRAIT_BOTTOM_FADE = 0.18;
 export function MaskedPortrait({
   src,
   alt,
@@ -41,7 +39,7 @@ export function MaskedPortrait({
 
   const baseStyle: React.CSSProperties = {
     display: "block",
-    maxWidth: "93%",
+    width: "100%",
     height: "auto",
     transition: `opacity ${transitionDurationMs}ms ease-in-out`,
   };
@@ -59,7 +57,6 @@ export function MaskedPortrait({
       zoom,
       offsetX,
       offsetY,
-      fadeBottom: PORTRAIT_BOTTOM_FADE,
     }).catch((error) => {
       console.error("Failed to apply mask to portrait:", error);
     });
@@ -80,7 +77,6 @@ export function MaskedPortrait({
       zoom,
       offsetX,
       offsetY,
-      fadeBottom: PORTRAIT_BOTTOM_FADE,
     }).catch((error) => {
       console.error("Failed to apply mask to hover portrait:", error);
     });

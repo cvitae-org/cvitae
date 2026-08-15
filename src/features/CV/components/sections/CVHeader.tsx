@@ -9,7 +9,7 @@ import { useCVCustomizationOptional } from "../../contexts/CVCustomizationContex
 import { EditableText } from "../editing/EditableText";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { usePortrait } from "../../hooks/usePortrait";
-import { backgroundScale, backgroundSvgUrl, shapeSvgUrl } from "../../portrait";
+import { backgroundScale, backgroundSvgUrl, portraitWidthRatio, shapeSvgUrl } from "../../portrait";
 import { setLink, setPersonal, setRoleDescription, setSkills } from "../../store";
 import type { CvSkills } from "../../document";
 import { sectionOrder } from "../../order";
@@ -68,7 +68,7 @@ export function CVHeader() {
 
   return (
     <MeasuredItem id="cv-header" section="header" order={sectionOrder("header")}>
-      <div className="relative">
+      <div className="relative overflow-hidden rounded-t-md print:rounded-none">
         {/* Main header: Portrait + Info */}
         <div className="relative grid grid-cols-1 md:grid-cols-[0.85fr_2fr] items-center">
           {/* Gap cover for PDF rendering - placed at grid level to avoid cell clipping */}
@@ -86,6 +86,7 @@ export function CVHeader() {
             <MaskedBackground
               shapeSrc={backgroundSvgUrl(portrait.shape)}
               size={280 * backgroundScale(portrait.shape)}
+              portraitWidthRatio={portraitWidthRatio(portrait.shape)}
               fillColor="#ffffff"
             >
               {/*
@@ -107,12 +108,11 @@ export function CVHeader() {
                 zoom={portrait.zoom}
                 offsetX={portrait.offsetX}
                 offsetY={portrait.offsetY}
-                className="relative -top-[3px]"
               />
             </MaskedBackground>
           </div>
 
-          <div className="relative space-y-2 pl-1 text-center md:text-left bg-white h-full rounded-tr-md flex flex-col justify-center">
+          <div className="relative flex h-full flex-col justify-center space-y-2 bg-white pl-1 text-center md:text-left">
             <div>
               <EditableText
                 as="h1"

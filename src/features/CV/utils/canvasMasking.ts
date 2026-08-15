@@ -26,16 +26,6 @@ interface ApplyMaskToCanvasOptions {
   zoom?: number;
   offsetX?: number;
   offsetY?: number;
-  /**
-   * Fraction of the height, measured up from the bottom, faded to transparent.
-   *
-   * The mask's lower edge is flat. That read as deliberate while the exported
-   * PDF still carried the decorative background — the photo met the blue and
-   * looked like a panel — but the export is white now, and a flat edge on white
-   * reads as an image that failed to finish loading. Fading it is what makes it
-   * end rather than stop.
-   */
-  fadeBottom?: number;
 }
 
 /**
@@ -68,7 +58,6 @@ export async function applyMaskToCanvas({
   zoom = 1,
   offsetX: framingX = 0,
   offsetY: framingY = 0,
-  fadeBottom = 0,
 }: ApplyMaskToCanvasOptions): Promise<void> {
   const ctx = canvas.getContext("2d", { willReadFrequently: false });
   if (!ctx) {
@@ -131,26 +120,6 @@ export async function applyMaskToCanvas({
   ctx.globalCompositeOperation = "destination-in";
   ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
 
-  // Step 3: Fade the lower edge out, by erasing alpha rather than painting a
-  // colour over it. Painting white would only be invisible against white, and
-  // on screen this sits over the page's background rather than over paper.
-  if (fadeBottom > 0) {
-    const fadeHeight = canvas.height * fadeBottom;
-    const gradient = ctx.createLinearGradient(
-      0,
-      canvas.height - fadeHeight,
-      0,
-      canvas.height
-    );
-    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
-    gradient.addColorStop(1, "rgba(0, 0, 0, 1)");
-
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, canvas.height - fadeHeight, canvas.width, fadeHeight);
-  }
-
-  // Reset composite operation
   ctx.globalCompositeOperation = "source-over";
 }
 

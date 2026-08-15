@@ -8,6 +8,7 @@ import {
   backgroundScale,
   backgroundSvgUrl,
   downscaleImage,
+  portraitWidthRatio,
   PRESET_NAMES,
   PRESETS,
   setPortraitFraming,
@@ -137,6 +138,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
             <MaskedBackground
               shapeSrc={backgroundSvgUrl(shape)}
               size={200 * backgroundScale(shape)}
+              portraitWidthRatio={portraitWidthRatio(shape)}
               fillColor="#ffffff"
             >
               <MaskedPortrait

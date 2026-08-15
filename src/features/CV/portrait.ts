@@ -189,6 +189,23 @@ export const shapeSvgUrl = (shape: PortraitShape, fill = '#000'): string => {
  */
 const BACKGROUND_MARGIN = 32;
 
+/** Original hand-drawn background asset dimensions. */
+export const CLASSIC_BACKGROUND_WIDTH = 829;
+export const CLASSIC_BACKGROUND_HEIGHT = 1080;
+
+/**
+ * Portrait width as a fraction of the white background canvas width.
+ *
+ * The mask and the white fill share the same path; the background canvas is
+ * larger by `BACKGROUND_MARGIN` on each side. The photograph has to sit at this
+ * ratio or rounded corners drift — the old `93%` guess was close but wrong
+ * enough to leave gaps at the curves.
+ */
+export const portraitWidthRatio = (shape: PortraitShape): number =>
+  shape.preset === 'classic'
+    ? SHAPE_WIDTH / CLASSIC_BACKGROUND_WIDTH
+    : SHAPE_WIDTH / (SHAPE_WIDTH + BACKGROUND_MARGIN * 2);
+
 /** The factor `MaskedBackground` must be drawn at so its inner area matches. */
 export const backgroundScale = (shape: PortraitShape): number =>
   shape.preset === 'classic'
@@ -220,7 +237,7 @@ export const backgroundSvgUrl = (shape: PortraitShape, fill = '#ffffff'): string
     `width="${width}" height="${height}">` +
     `<g transform="translate(${BACKGROUND_MARGIN} ${BACKGROUND_MARGIN})">` +
     `<path d="${shapePath(shape)}" fill="${fill}" stroke="${fill}" ` +
-    `stroke-width="${BACKGROUND_MARGIN * 2}" stroke-linejoin="round"/>` +
+    `stroke-width="${BACKGROUND_MARGIN * 2}" stroke-linejoin="miter"/>` +
     `</g></svg>`;
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

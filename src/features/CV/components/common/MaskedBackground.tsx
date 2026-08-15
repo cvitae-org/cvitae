@@ -9,6 +9,11 @@ interface MaskedBackgroundProps {
   fillColor?: string;
   className?: string;
   /**
+   * Portrait width as a fraction of this canvas width. Must match
+   * `portraitWidthRatio(shape)` so the photo sits on the white fill exactly.
+   */
+  portraitWidthRatio?: number;
+  /**
    * Base width to draw at, in the same units the portrait uses.
    *
    * The white layer has to be bigger than the portrait or there is no margin to
@@ -28,6 +33,7 @@ export function MaskedBackground({
   shapeSrc,
   fillColor = "#ffffff",
   className = "",
+  portraitWidthRatio = 1,
   size = 280,
 }: MaskedBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -60,14 +66,19 @@ export function MaskedBackground({
         aria-hidden="true"
       />
       
-      {/* Content layered on top */}
-      <div 
+      {/* Content layered on top, sized to the inner fill area of the shape */}
+      <div
         className="absolute inset-0 flex items-center justify-center"
         style={{
           pointerEvents: "none",
         }}
       >
-        <div style={{ pointerEvents: "auto" }}>
+        <div
+          style={{
+            width: `${portraitWidthRatio * 100}%`,
+            pointerEvents: "auto",
+          }}
+        >
           {children}
         </div>
       </div>
