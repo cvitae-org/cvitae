@@ -22,19 +22,6 @@ const loadAiModule = async (): Promise<AiModule> => {
 
 export const maxDuration = 60;
 
-const loadMessagesForLocale = async (locale: string) => {
-  try {
-    const localeModule = await import(`@/../messages/${locale}.json`);
-    return localeModule.default ?? localeModule;
-  } catch (error) {
-    console.warn(
-      `Falling back to English messages for unsupported locale "${locale}".`,
-      error
-    );
-    return (await import(`@/../messages/en.json`)).default;
-  }
-};
-
 const responseSchema = z.object({
   subject: z.string().describe(
     'The email subject line. Names the position, and the candidate. Plain text, no quotes, under 80 characters.'
@@ -53,7 +40,8 @@ export async function POST(req: Request) {
       cvTitle,
       cvSummary,
       locale = 'en',
-      ai
+      ai,
+      cv
     } = await req.json();
 
     if (!offer || typeof offer !== 'string') {
@@ -69,8 +57,20 @@ export async function POST(req: Request) {
     ]);
     const { generateObject } = aiModule;
 
-    const translations = await loadMessagesForLocale(locale);
-    const cvData = (translations as Record<string, unknown>).cv;
+    // Sent by the caller rather than read from `messages/*.json`. See the note
+    // on the same change in `api/cv/generate`: the CV moved into the document
+    // store, and the translations file now holds only headings and a footer.
+    const cvData = cv;
+
+    if (!cvData || typeof cvData !== 'object') {
+      return Response.json(
+        {
+          error:
+            'No CV was sent with the request. The email is drafted from the CV document held in the browser; it is no longer in the translation files.'
+        },
+        { status: 400 }
+      );
+    }
 
     const languageInstruction =
       locale === 'pl'

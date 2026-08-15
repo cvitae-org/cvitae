@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { loadSettings, toRequestOverride } from '@/features/Settings/aiSettings';
+import { getCvState } from '@/features/CV/store';
 import {
   getServerSnapshot,
   getSnapshot,
@@ -105,7 +106,14 @@ export const useSubmitting = () => {
       return call(
         'cv',
         '/api/cv/generate',
-        { jobOffer: brief, locale: submission.language },
+        {
+          jobOffer: brief,
+          locale: submission.language,
+          // Read at send time rather than subscribed to: this is an event
+          // handler, and the CV that matters is the one for the language the
+          // application is being written in, not the one the page is showing.
+          cv: getCvState()[submission.language]
+        },
         (data) => {
           if (typeof data.summary !== 'string') return;
           setTailoredCV(submission.id, {
@@ -137,7 +145,8 @@ export const useSubmitting = () => {
           company: submission.offer.company,
           position: submission.offer.position,
           cvTitle: submission.cv?.title,
-          cvSummary: submission.cv?.summary
+          cvSummary: submission.cv?.summary,
+          cv: getCvState()[submission.language]
         },
         (data) => {
           // Built key by key rather than spread: an explicit `subject:

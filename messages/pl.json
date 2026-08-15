@@ -1,126 +1,19 @@
 {
   "cv": {
-    "resetZoom": "Resetuj Powiększenie",
-    "name": "Dominik Beń",
-    "title": "FRONTEND DEVELOPER",
-    "contact": {
-      "email": "bendominik@gmail.com",
-      "phone": "+48 518-304-803",
-      "github": "github.com/fijisoo",
-      "linkedin": "linkedin.com/in/dominik-ben/",
-      "website": "bendominik.eu"
-    },
-    "summary": "Ponad 8 lat doświadczenia w tworzeniu skalowalnych aplikacji internetowych. Specjalizuję się w React i Next.js, z silnym naciskiem na architekture aplikacji i i UX. Pasjonat nowych technologii, w tym Web3 i blockchain.",
     "sections": {
       "contact": "Kontakt",
-      "summary": "Profil Zawodowy",
-      "skills": "Umiejętności Techniczne",
       "experience": "Doświadczenie Zawodowe",
       "education": "Edukacja",
       "certificates": "Certyfikaty",
       "languages": "Języki"
     },
-    "skills": {
-      "languages": "Javascript, HTML, CSS, JSX, Typescript, Rust",
-      "frameworks": "React, Next.js, Strapi, Express, Node.js, Gatsby",
-      "libraries": "Redux, jotai, NX, Storybook, jfrog, React Query, React Hook Form, React Router, Webpack, Vite, GraphQL, i18next",
-      "styling": "Design System, CSS Modules, SCSS, Tailwind, Styled Components, Chakra UI, Figma, Photoshop",
-      "other": "WAGMI, ethersJS, ICP Blockchain SDK, Docker, Vercel, Netlify, Git, Jira"
+    "skillGroups": {
+      "programming_languages": "Języki",
+      "frameworks": "Frameworki",
+      "libraries_and_tools": "Biblioteki i narzędzia"
     },
-    "experience": [
-      {
-        "title": "Lead Frontend Developer",
-        "company": "RUNNR Trade",
-        "period": "Czerwiec 2025 - Obecnie",
-        "achievements": [
-          "Kierowałem architekturą frontendową platformy handlowej DeFi opartej na Solanie, dostarczając aktualizacje WebSocket w czasie poniżej sekundy dla śledzenia portfeli w czasie rzeczywistym i wykonywania transakcji.",
-          "Zaprojektowałem dashboard analityczny portfolio z live PnL, śledzeniem pozycji i metrykami wydajności tokenów, przetwarzając tysiące zdarzeń on-chain.",
-          "Zaprojektowałem modułową architekturę komponentów używając Zustand, React Query i TypeScript, redukując złożoność kodu",
-          "Dostarczyłem gotowy do produkcji interfejs handlowy z integracją TradingView, przeciąganymi układami i responsywnymi tabelami zoptymalizowanymi dla strumieni danych wysokiej częstotliwości.",
-          "Ustanowiłem wzorce domain driven i separation of concerns jako standardy frontendowe dla całego zespołu."
-        ]
-      },
-      {
-        "title": "Założyciel / Blockchain Developer",
-        "company": "Własny projekt na technologii ICP Blockchain",
-        "period": "Lipiec 2023 - Maj 2025",
-        "achievements": [
-          "Pracowałem nad uruchomieniem start-upu opartego na technologii ICP Blockchain, skupiającego się na tworzeniu platformy NFT dla artystów muzycznych.",
-          "Rozwinąłem umiejętności w zakresie zarządzania projektem, planowania strategicznego oraz prowadzenia dokumentacji technicznej.",
-          "Współpracowałem ze społecznością ICP oraz uczestniczyłem w programach grantowych, co pozwoliło mi na nawiązanie wartościowych kontaktów biznesowych.",
-          "Nauczyłem się radzić z wyzwaniami związanymi z prowadzeniem własnego biznesu, takimi jak pozyskiwanie funduszy czy przygotowywanie szczegółowej dokumentacji technicznej.",
-          "Opracowałem koncepcję i architekturę aplikacji, w tym komunikację między kanistrami i integrację z siecią blockchain."
-        ]
-      },
-      {
-        "title": "Frontend Developer",
-        "company": "Inter Cars S.A.",
-        "period": "Czerwiec 2019 - Czerwiec 2023",
-        "achievements": [
-          "Zrefaktoryzowałem aplikację z klasowego React'a na hooki, znacznie poprawiając wydajność aplikacji oraz czytelność kodu.",
-          "Tworzyłem atomy, moduły, oraz całe layouty wraz z zaawansowaną implementacją architektury aplikacji frontendowych dedykowanych na rynki zagraniczne.",
-          "Współpracowałem w międzynarodowym zespole w metodyce SCRUM.",
-          "Pełniłem rolę kluczowego członka zespołu frontendowego, uczestnicząc w tworzeniu nowego sklepu internetowego od podstaw."
-        ]
-      },
-      {
-        "title": "Senior Frontend Developer",
-        "company": "Gameswift",
-        "period": "Wrzesień 2022 - Marzec 2023",
-        "achievements": [
-          "Prowadziłem code review i uczestniczyłem w dyskusjach na temat rozwoju aplikacji pod kątem technicznym.",
-          "Opracowałem serwis umożliwiający pobieranie gier Web3, wykorzystując nowoczesne technologie frontendowe i narzędzia do interakcji z blockchainem.",
-          "Utrzymywałem i optymalizowałem landing page.",
-          "Zbudowałem narzędzie do autoryzacji OAuth przez aplikacje zewnętrzne poprawiając bezpieczeństwo i wygodę logowania użytkowników.",
-          "Zajmowałem się implementacją deep linków przekierowujących użytkowników do desktopowego launchera, usprawniając integrację między aplikacjami."
-        ]
-      },
-      {
-        "title": "Fullstack Engineer",
-        "company": "Softwarehood",
-        "period": "Październik 2019 - Październik 2020",
-        "achievements": [
-          "Opracowałem system do ewidencji czasu, usprawniając proces raportowania.",
-          "Samodzielnie opracowałem backendowy moduł płatności dla aplikacji webowej, integrując systemy płatnicze i zapewniając bezpieczne transakcje online."
-        ]
-      },
-      {
-        "title": "Frontend Developer",
-        "company": "7ninjas (Freelance)",
-        "period": "Październik 2018 - Styczeń 2019",
-        "achievements": [
-          "Współtworzyłem projekty oparte na nowoczesnych frameworkach do budowy aplikacji internetowych, wykorzystując zaawansowane metody zarządzania stanem aplikacji oraz obsługę operacji asynchronicznych, co zwiększyło responsywność i interaktywność aplikacji.",
-          "Prowadziłem code review oraz uczestniczyłem w procesie wyceny projektów, co pozwoliło na efektywną realizację zadań i optymalizację kosztów."
-        ]
-      },
-      {
-        "title": "Junior Frontend Developer",
-        "company": "Britenet",
-        "period": "Marzec 2018 - Wrzesień 2018",
-        "achievements": [
-          "Prowadziłem code review i współpracowałem z zespołem w celu optymalizacji kodu.",
-          "Budowałem aplikacje SaaS przy użyciu nowoczesnych technologii w metodyce SCRUM."
-        ]
-      }
-    ],
-    "education": {
-      "degree": "Magister Inżynier (Informatyka, specjalizacja aplikacje internetowe)",
-      "university": "Politechnika Lubelska",
-      "period": "2012 - 2017"
-    },
-    "certificates": [
-      {
-        "title": "Zbudowanie podstawowego projektu - ICP Chat na sieci Internet Computer",
-        "description": "Projekt z użyciem języka Rust, Vue oraz Typescript",
-        "date": "29-31.07.2024"
-      }
-    ],
-    "languages": [
-      {
-        "name": "Angielski",
-        "level": "B2"
-      }
-    ],
+    "ongoing": "Obecnie",
+    "noExpiry": "Bezterminowo",
     "footer": "Po referencje oraz dodatkowe informacje zapraszam do kontaktu telefonicznego / mailowego."
   }
 }

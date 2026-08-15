@@ -87,7 +87,9 @@ export function CVEducation() {
                         finished: value.trim() ? value : null,
                       })
                     }
-                    placeholder="Present"
+                    // Printed, so translated. See the note in CVExperience.
+                    placeholder={t("ongoing")}
+                    placeholderIsValue
                     ariaLabel={`Qualification ${index + 1} end date, empty means ongoing`}
                   />
                   <EntryControls

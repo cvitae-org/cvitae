@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useLocale } from "next-intl";
 import { useCVCustomization } from "../contexts/CVCustomizationContext";
+import { useCvDocument } from "../hooks/useCvDocument";
 import { loadSettings, toRequestOverride } from "@/features/Settings/aiSettings";
 
 interface GeneratedContent {
@@ -22,6 +23,9 @@ export function JobOfferModal({ isOpen, onClose }: JobOfferModalProps) {
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null);
 
   const locale = useLocale();
+  // Not destructured as `document`: this component attaches a keydown listener
+  // to the real one, and shadowing it here would break Escape.
+  const { document: cvDocument } = useCvDocument();
   const { setCustomTexts, resetToDefaults, hasCustomTexts } = useCVCustomization();
 
   // Reset state when modal opens
@@ -61,6 +65,9 @@ export function JobOfferModal({ isOpen, onClose }: JobOfferModalProps) {
           jobOffer,
           locale,
           ai: toRequestOverride(loadSettings()),
+          // The route has no way to read the document itself — it is a server
+          // route and the CV lives in this browser's IndexedDB.
+          cv: cvDocument,
         }),
       });
 
@@ -75,7 +82,7 @@ export function JobOfferModal({ isOpen, onClose }: JobOfferModalProps) {
     } finally {
       setIsGenerating(false);
     }
-  }, [jobOffer, locale]);
+  }, [jobOffer, locale, cvDocument]);
 
   const handleApply = useCallback(() => {
     if (generatedContent) {

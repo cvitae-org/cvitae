@@ -86,7 +86,9 @@ export function CVCertificates() {
                         finished: value.trim() ? value : null,
                       })
                     }
-                    placeholder="No expiry"
+                    // Printed, so translated. See the note in CVExperience.
+                    placeholder={t("noExpiry")}
+                    placeholderIsValue
                     ariaLabel={`Certificate ${index + 1} expiry date, empty means it does not expire`}
                   />
                   <EntryControls

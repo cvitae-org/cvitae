@@ -8,6 +8,14 @@ interface MaskedBackgroundProps {
   shapeSrc: string;
   fillColor?: string;
   className?: string;
+  /**
+   * Base width to draw at, in the same units the portrait uses.
+   *
+   * The white layer has to be bigger than the portrait or there is no margin to
+   * see — the two canvases are both laid out from this number, so drawing them
+   * at the same one hides the border behind the photograph exactly.
+   */
+  size?: number;
 }
 
 /**
@@ -20,6 +28,7 @@ export function MaskedBackground({
   shapeSrc,
   fillColor = "#ffffff",
   className = "",
+  size = 280,
 }: MaskedBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -32,11 +41,11 @@ export function MaskedBackground({
       shapeSrc,
       fillColor,
       scale: 1,
-      size: 280,
+      size,
     }).catch((error) => {
       console.error("Failed to render background shape:", error);
     });
-  }, [shapeSrc, fillColor]);
+  }, [shapeSrc, fillColor, size]);
 
   return (
     <div className={`relative ${className}`}>

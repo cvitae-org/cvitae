@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useState } from 'react';
-import { useTranslations } from 'next-intl';
 import { locales, type Locale } from '@/libs/i18n/config';
+import { useCvDocument } from '@/features/CV/hooks/useCvDocument';
 import type { JobRecord } from '@/features/JobResearch/types';
 import type { Submission } from '../types';
 import {
@@ -175,10 +175,15 @@ export function SubmissionDetail({
   onRerun,
   isAnalysing
 }: SubmissionDetailProps) {
-  const t = useTranslations('cv');
   const [copied, setCopied] = useState(false);
 
   const { offer, apply, cv } = submission;
+
+  // The name on the subject line comes from the CV being sent, in the language
+  // it was written in — not from `messages`, where it used to live as
+  // `cv.name`. A person's name is not a translation, and the copy under
+  // `messages` could not be corrected by editing the CV.
+  const { document: cvDocument } = useCvDocument(submission.language);
   const stage = stageOf(submission);
   const method = applyMethodOf(submission);
   const sent = Boolean(submission.sentAt);
@@ -199,7 +204,7 @@ export function SubmissionDetail({
   // shows it as a placeholder so what will be sent is never a surprise.
   const subject =
     apply.subject.trim() ||
-    defaultSubject(offer, t('name'), submission.language);
+    defaultSubject(offer, cvDocument.personal.name, submission.language);
 
   const handleCopy = useCallback(async () => {
     try {

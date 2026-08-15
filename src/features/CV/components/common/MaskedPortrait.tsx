@@ -10,6 +10,10 @@ interface MaskedPortraitProps {
   className?: string;
   hoverSrc?: string;
   transitionDurationMs?: number;
+  /** How the image sits inside the mask. See `applyMaskToCanvas`. */
+  zoom?: number;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 /**
@@ -17,6 +21,9 @@ interface MaskedPortraitProps {
  * This approach works for both screen display and PDF generation since the mask is
  * applied programmatically rather than using CSS mask-image (which html2canvas doesn't support).
  */
+
+/** How much of the portrait's height dissolves at the bottom. See `fadeBottom`. */
+const PORTRAIT_BOTTOM_FADE = 0.18;
 export function MaskedPortrait({
   src,
   alt,
@@ -24,6 +31,9 @@ export function MaskedPortrait({
   className = "",
   hoverSrc,
   transitionDurationMs = 250,
+  zoom = 1,
+  offsetX = 0,
+  offsetY = 0,
 }: MaskedPortraitProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,10 +56,14 @@ export function MaskedPortrait({
       maskSrc,
       scale: 1,
       size: 280,
+      zoom,
+      offsetX,
+      offsetY,
+      fadeBottom: PORTRAIT_BOTTOM_FADE,
     }).catch((error) => {
       console.error("Failed to apply mask to portrait:", error);
     });
-  }, [src, maskSrc]);
+  }, [src, maskSrc, zoom, offsetX, offsetY]);
 
   useEffect(() => {
     if (!hoverSrc) return;
@@ -63,10 +77,14 @@ export function MaskedPortrait({
       maskSrc,
       scale: 1,
       size: 280,
+      zoom,
+      offsetX,
+      offsetY,
+      fadeBottom: PORTRAIT_BOTTOM_FADE,
     }).catch((error) => {
       console.error("Failed to apply mask to hover portrait:", error);
     });
-  }, [hoverSrc, maskSrc]);
+  }, [hoverSrc, maskSrc, zoom, offsetX, offsetY]);
 
   return (
     <div

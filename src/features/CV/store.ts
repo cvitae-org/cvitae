@@ -2,7 +2,6 @@ import type { Locale } from '@/libs/i18n/config';
 import { createPersistedStore } from '@/libs/storage/persistedStore';
 import {
   emptyDocument,
-  emptyState,
   parseState,
   type CvCertificate,
   type CvDocument,
@@ -11,6 +10,7 @@ import {
   type CvLanguage,
   type CvState
 } from './document';
+import { seedDocument, seedState } from './seed';
 
 /**
  * The CV, held in the browser and written to IndexedDB.
@@ -24,9 +24,20 @@ import {
  * `reindex()` there is already defined as a repair rather than a migration,
  * which is exactly the standing a derived copy should have.
  *
- * Empty on first run. There is no seed from `messages/*.json`: the way in is an
- * import, and a CV that arrives pre-filled with someone else's details is worse
- * than one that says what to do next.
+ * Seeded on first run from `./seed`, which is this CV committed to the repo,
+ * one document per language.
+ *
+ * This reverses what the comment here used to say — that the only way in was an
+ * import, because a CV arriving pre-filled with someone else's details is worse
+ * than one that says what to do next. That reasoning holds for a blank tool
+ * someone else installs. It does not hold for the site whose whole purpose is
+ * to be *this* CV: there, an empty first render is not an invitation, it is the
+ * page failing to show the thing it exists for, and clearing site data meant
+ * losing the document with no way back.
+ *
+ * The seed only ever fills a locale storage has no record of. Once a document
+ * has been written it is authoritative, including when what was written is
+ * nothing — see `parseState`.
  */
 
 const STORAGE_KEY = 'cvitae.cv.v1';
@@ -34,8 +45,8 @@ const STORAGE_VERSION = 1;
 
 const store = createPersistedStore<CvState>({
   key: STORAGE_KEY,
-  empty: emptyState,
-  parse: parseState,
+  empty: seedState,
+  parse: (stored) => parseState(stored, seedDocument),
   serialize: (data) => ({ version: STORAGE_VERSION, documents: data })
 });
 

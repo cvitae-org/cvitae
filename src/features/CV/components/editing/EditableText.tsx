@@ -24,22 +24,44 @@ type EditableTextProps = {
   onCommit: (value: string) => void;
   /** Shown greyed when the value is empty, so an unfilled field is findable. */
   placeholder?: string;
+  /**
+   * Set when the placeholder is the content, not a hint about it.
+   *
+   * Most empty fields are simply unfilled, and their placeholder is scaffolding
+   * that must not reach the PDF — an exported CV should not advertise "Phone
+   * number" where a phone number isn't. But a few fields mean something by being
+   * empty: a job with no `finished` date is ongoing, and "Present" is how that
+   * reads. Hiding those on export leaves "June 2025 –" trailing into nothing.
+   */
+  placeholderIsValue?: boolean;
   className?: string;
   /** Allows newlines. Off by default: most CV fields are one line. */
   multiline?: boolean;
   /** Rendered as this element, so editing does not change the typography. */
   as?: 'span' | 'p' | 'div' | 'h1' | 'h2' | 'h3';
   ariaLabel?: string;
+  /**
+   * Where this text points, for the PDF export only.
+   *
+   * Not an `href`, and deliberately not an anchor: clicking an anchor whose text
+   * is `contentEditable` navigates, which is the gesture that is supposed to
+   * place a caret. `usePDFGenerator` reads this off the DOM and adds a link
+   * annotation over the rendered rectangle, so the exported file has a real
+   * clickable link and the editable page has none.
+   */
+  pdfLink?: string;
 };
 
 export function EditableText({
   value,
   onCommit,
   placeholder = 'Not set',
+  placeholderIsValue = false,
   className = '',
   multiline = false,
   as: Tag = 'span',
-  ariaLabel
+  ariaLabel,
+  pdfLink
 }: EditableTextProps) {
   const ref = useRef<HTMLElement>(null);
   const [editing, setEditing] = useState(false);
@@ -86,6 +108,13 @@ export function EditableText({
 
   const empty = !value;
 
+  // Grey says "nothing here yet", which is wrong for a placeholder that is the
+  // value: an ongoing job reads "June 2025 – Present", and rendering half of
+  // that in placeholder grey made it look like the field had been missed. It
+  // was one string in normal weight before the CV became editable, and it
+  // should still look like one.
+  const showsHint = empty && !placeholderIsValue;
+
   return (
     <Tag
       ref={ref as React.Ref<never>}
@@ -99,9 +128,15 @@ export function EditableText({
       onBlur={commit}
       onKeyDown={onKeyDown}
       data-placeholder={placeholder}
+      // Both are read by the PDF export and by nothing else. This one marks a
+      // placeholder that is only a hint: it is a `::before`, and html2canvas
+      // resolves pseudo content into real nodes, so without a way to find these
+      // an unfilled phone number exports as the words "Phone number" in grey.
+      data-cv-hint={showsHint ? '' : undefined}
+      data-cv-link={pdfLink || undefined}
       className={`${className} cursor-text rounded-sm outline-none transition-colors hover:bg-[#65B7FF]/10 focus:bg-[#65B7FF]/10 focus:ring-1 focus:ring-[#65B7FF] ${
-        empty ? 'text-gray-300 before:content-[attr(data-placeholder)]' : ''
-      } print:hover:bg-transparent print:focus:bg-transparent print:focus:ring-0`}
+        empty ? 'before:content-[attr(data-placeholder)]' : ''
+      } ${showsHint ? 'text-gray-300' : ''} print:hover:bg-transparent print:focus:bg-transparent print:focus:ring-0`}
     />
   );
 }

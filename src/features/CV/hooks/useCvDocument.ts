@@ -12,8 +12,15 @@ import { getServerSnapshot, getSnapshot, subscribe } from '../store';
  * The locale comes from the route rather than a prop, so switching language
  * switches document — which is the whole behaviour of two independent CVs, and
  * needs no wiring beyond this.
+ *
+ * `locale` overrides that, for the callers reading a CV they are not currently
+ * looking at. An application carries the language it was written in, and the
+ * name on its email has to come from the CV being sent rather than from the
+ * page that happens to be open.
  */
-export const useCvDocument = (): {
+export const useCvDocument = (
+  locale?: Locale
+): {
   document: CvDocument;
   locale: Locale;
   /** False until IndexedDB has been read; an empty CV and an unread one differ. */
@@ -21,14 +28,16 @@ export const useCvDocument = (): {
   /** Nothing entered yet, so the page should offer a way to begin. */
   blank: boolean;
 } => {
-  const locale = useLocale() as Locale;
+  const routeLocale = useLocale() as Locale;
+  const resolved = locale ?? routeLocale;
+
   const { data, hydrated } = useSyncExternalStore(
     subscribe,
     getSnapshot,
     getServerSnapshot
   );
 
-  const document = data[locale] ?? emptyDocument();
+  const document = data[resolved] ?? emptyDocument();
 
-  return { document, locale, hydrated, blank: isBlank(document) };
+  return { document, locale: resolved, hydrated, blank: isBlank(document) };
 };

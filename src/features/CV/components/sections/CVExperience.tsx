@@ -67,7 +67,7 @@ export function CVExperience() {
             section="experience"
             order={entryOrder("experience", index)}
           >
-            <div className="group bg-white px-4 space-y-2 pb-2">
+            <div className="group relative bg-white px-4 space-y-2 pb-2">
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1">
                   <EditableText
@@ -112,7 +112,12 @@ export function CVExperience() {
                         finished: value.trim() ? value : null,
                       })
                     }
-                    placeholder="Present"
+                    // Translated, unlike the hint placeholders around it,
+                    // because this one is printed: an empty `finished` renders
+                    // as this word in the exported PDF, and the Polish CV was
+                    // saying "Czerwiec 2025 – Present".
+                    placeholder={t("ongoing")}
+                    placeholderIsValue
                     ariaLabel={`Job ${index + 1} end date, empty means ongoing`}
                   />
                   <EntryControls
@@ -130,14 +135,27 @@ export function CVExperience() {
                       key={bulletIndex}
                       // Its own group, so hovering one bullet reveals that
                       // bullet's control rather than every control in the job.
-                      className="group/bullet leading-relaxed flex"
+                      className="group/bullet relative leading-relaxed flex"
                       style={{ alignItems: "flex-start" }}
                     >
                       <div
-                        id={`cv-experience-bullet-${index}-${bulletIndex}`}
+                        // An attribute, not an `id`. This subtree is rendered
+                        // twice — once in the hidden measurement tree and once
+                        // by `PaginatedRenderer` — from the same element, so
+                        // anything unique here is unique twice over. That made
+                        // the ids these carried invalid and broke the PDF
+                        // export, which found both copies and styled the hidden
+                        // one too. `data-` attributes carry no such promise.
+                        data-cv-bullet=""
                         className="flex-shrink-0"
                         style={{
-                          width: "8px",
+                          // The branch of the tree, and then a gap before the
+                          // text. Without the gap the rule ran straight into the
+                          // first word — "—Led frontend architecture" — which is
+                          // what made the tree read as a stray mark rather than
+                          // as structure.
+                          width: "10px",
+                          marginRight: "4px",
                           paddingTop: "7px",
                           display: "flex",
                           alignItems: "flex-start",
@@ -161,7 +179,17 @@ export function CVExperience() {
                         ariaLabel={`Job ${index + 1} bullet ${bulletIndex + 1}`}
                         className="flex-1"
                       />
-                      <span className="opacity-0 transition-opacity focus-within:opacity-100 group-hover/bullet:opacity-100 print:hidden">
+                      {/*
+                        Out of the flow, because in it this control was taking
+                        about fifty pixels of every bullet's width while being
+                        invisible: the text column measured 668px against the
+                        714px it has now. So bullets wrapped earlier on
+                        screen than in the export, where the control is removed
+                        outright — and since the hidden tree is what gets
+                        measured, pagination was planned around lines the file
+                        does not contain. Same text, two different documents.
+                      */}
+                      <span className="absolute right-0 top-0 bg-white pl-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/bullet:opacity-100 print:hidden">
                         <button
                           type="button"
                           onClick={() =>
@@ -177,19 +205,32 @@ export function CVExperience() {
                     </li>
                   ))}
 
-                  {/*
-                    Revealed with the job rather than always shown. `EntryControls`
-                    keeps a lone "add" visible on its own — right for an empty
-                    section, wrong here, where one would sit under every job in a
-                    filled CV and turn a document back into a form.
-                  */}
-                  <li className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 print:hidden">
-                    <EntryControls
-                      onAdd={() => addHighlight(locale, index)}
-                      addLabel={`Add a bullet to ${entry.title || "this job"}`}
-                    />
-                  </li>
                 </ul>
+              </div>
+
+              {/*
+                Revealed with the job rather than always shown. `EntryControls`
+                keeps a lone "add" visible on its own — right for an empty
+                section, wrong here, where one would sit under every job in a
+                filled CV and turn a document back into a form.
+
+                Below the tree rather than as its last `li`, which is where it
+                was: the rule down the left is a sibling stretched to the list's
+                height, so a row inside the list — even an invisible one — made
+                the rule overhang the last bullet by a line.
+
+                Positioned rather than stacked, for the same reason the per-
+                bullet control is: in the flow it cost 32px of every job — 224px
+                across this CV — reserved for something nobody can see, which the
+                export then removes. Absolute keeps it out of the measured height
+                without moving it in the DOM, so it is still tabbed to in the
+                order it is read in.
+              */}
+              <div className="absolute inset-x-4 bottom-0 ml-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 print:hidden">
+                <EntryControls
+                  onAdd={() => addHighlight(locale, index)}
+                  addLabel={`Add a bullet to ${entry.title || "this job"}`}
+                />
               </div>
             </div>
           </MeasuredItem>

@@ -103,13 +103,8 @@ export const emptyDocument = (): CvDocument => ({
   sources: []
 });
 
-/** One CV per language, both empty until something is imported or typed. */
+/** One CV per language. What each starts as is `./seed`'s business, not this module's. */
 export type CvState = Record<Locale, CvDocument>;
-
-export const emptyState = (): CvState =>
-  Object.fromEntries(
-    locales.map((locale) => [locale, emptyDocument()])
-  ) as CvState;
 
 /**
  * True when nothing has been entered yet.
@@ -222,7 +217,19 @@ export const parseDocument = (stored: unknown): CvDocument => {
   };
 };
 
-export const parseState = (stored: unknown): CvState => {
+/**
+ * `fallback` supplies the locales storage had nothing for.
+ *
+ * A parameter rather than a hard-coded `emptyDocument`, because "never written"
+ * and "written and then emptied" have to end differently: the store passes the
+ * seed here, and a CV the user cleared by hand stays cleared — it was stored,
+ * so it is parsed, so the seed never sees it. Getting that backwards would
+ * refill a document every time someone tried to empty it.
+ */
+export const parseState = (
+  stored: unknown,
+  fallback: (locale: Locale) => CvDocument = emptyDocument
+): CvState => {
   const raw = (stored ?? {}) as { documents?: unknown };
   const documents = (raw.documents ?? {}) as Record<string, unknown>;
 
@@ -231,7 +238,7 @@ export const parseState = (stored: unknown): CvState => {
       locale,
       // A locale absent from storage is a CV not yet written, not a fault —
       // adding a third language must not require a migration.
-      locale in documents ? parseDocument(documents[locale]) : emptyDocument()
+      locale in documents ? parseDocument(documents[locale]) : fallback(locale)
     ])
   ) as CvState;
 };

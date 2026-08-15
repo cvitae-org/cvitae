@@ -1,126 +1,19 @@
 {
   "cv": {
-    "resetZoom": "Reset Zoom",
-    "name": "Dominik Beń",
-    "title": "FRONTEND DEVELOPER",
-    "contact": {
-      "email": "bendominik@gmail.com",
-      "phone": "+48 518-304-803",
-      "github": "github.com/fijisoo",
-      "linkedin": "linkedin.com/in/dominik-ben/",
-      "website": "bendominik.eu"
-    },
-    "summary": "Over 8 years of experience in creating scalable web applications. I specialize in React and Next.js, with a strong focus on application architecture and UX. Passionate about new technologies, including Web3 and blockchain.",
     "sections": {
       "contact": "Contact",
-      "summary": "Professional Profile",
-      "skills": "Technical Skills",
       "experience": "Work Experience",
       "education": "Education",
       "certificates": "Certificates",
       "languages": "Languages"
     },
-    "skills": {
-      "languages": "Javascript, HTML, CSS, JSX, Typescript, Rust",
-      "frameworks": "React, Next.js, Strapi, Express, Node.js, Gatsby",
-      "libraries": "Redux, jotai, NX, Storybook, jfrog, React Query, React Hook Form, React Router, Webpack, Vite, GraphQL, i18next",
-      "styling": "Design System, CSS Modules, SCSS, Tailwind, Styled Components, Chakra UI, Figma, Photoshop",
-      "other": "WAGMI, ethersJS, ICP Blockchain SDK, Docker, Vercel, Netlify, Git, Jira"
+    "skillGroups": {
+      "programming_languages": "Languages",
+      "frameworks": "Frameworks",
+      "libraries_and_tools": "Libraries & Tools"
     },
-    "experience": [
-      {
-        "title": "Lead Frontend Developer",
-        "company": "RUNNR Trade",
-        "period": "June 2025 - Present",
-        "achievements": [
-          "Led frontend architecture for a Solana-based DeFi trading platform, delivering sub-second WebSocket updates for real-time wallet tracking and trade execution.",
-          "Engineered portfolio analytics dashboard with live PnL, position tracking, and token performance metrics—processing thousands of on-chain events.",
-          "Designed modular component architecture using Zustand, React Query, and strict TypeScript, reducing codebase complexity",
-          "Shipped production-ready trading UI with TradingView integration, draggable layouts, and responsive tables optimized for high-frequency data streams.",
-          "Established domain-driven patterns and separation of concerns adopted as team-wide frontend standards."
-        ]
-      },
-      {
-        "title": "Founder / Blockchain Developer",
-        "company": "Own project on ICP Blockchain technology",
-        "period": "July 2023 - May 2025",
-        "achievements": [
-          "Worked on launching a startup based on ICP Blockchain technology, focusing on creating an NFT platform for music artists.",
-          "Developed skills in project management, strategic planning, and technical documentation.",
-          "Collaborated with the ICP community and participated in grant programs, enabling valuable business connections.",
-          "Learned to handle challenges related to running my own business, such as fundraising and preparing detailed technical documentation.",
-          "Developed the concept and architecture of the application, including communication between canisters and blockchain network integration."
-        ]
-      },
-      {
-        "title": "Frontend Developer",
-        "company": "Inter Cars S.A.",
-        "period": "June 2019 - June 2023",
-        "achievements": [
-          "Refactored the application from class-based React to hooks, significantly improving application performance and code readability.",
-          "Created atoms, modules, and entire layouts with advanced implementation of frontend application architecture dedicated to foreign markets.",
-          "Collaborated in an international team using SCRUM methodology.",
-          "Served as a key member of the frontend team, participating in building a new online store from scratch."
-        ]
-      },
-      {
-        "title": "Senior Frontend Developer",
-        "company": "Gameswift",
-        "period": "September 2022 - March 2023",
-        "achievements": [
-          "Conducted code reviews and participated in discussions on application development from a technical perspective.",
-          "Developed a service enabling Web3 game downloads, using modern frontend technologies and blockchain interaction tools.",
-          "Maintained and optimized the landing page.",
-          "Built an OAuth authorization tool for external applications, improving security and user login convenience.",
-          "Implemented deep links redirecting users to the desktop launcher, streamlining integration between applications."
-        ]
-      },
-      {
-        "title": "Fullstack Engineer",
-        "company": "Softwarehood",
-        "period": "October 2019 - October 2020",
-        "achievements": [
-          "Developed a time tracking system, streamlining the reporting process.",
-          "Independently developed a backend payment module for a web application, integrating payment systems and ensuring secure online transactions."
-        ]
-      },
-      {
-        "title": "Frontend Developer",
-        "company": "7ninjas (Freelance)",
-        "period": "October 2018 - January 2019",
-        "achievements": [
-          "Co-created projects based on modern frameworks for building web applications, using advanced application state management methods and asynchronous operations handling, which increased application responsiveness and interactivity.",
-          "Conducted code reviews and participated in project estimation processes, enabling effective task execution and cost optimization."
-        ]
-      },
-      {
-        "title": "Junior Frontend Developer",
-        "company": "Britenet",
-        "period": "March 2018 - September 2018",
-        "achievements": [
-          "Conducted code reviews and collaborated with the team to optimize code.",
-          "Built SaaS applications using modern technologies in SCRUM methodology."
-        ]
-      }
-    ],
-    "education": {
-      "degree": "Master of Engineering (Computer Science, specialization in web applications)",
-      "university": "Lublin University of Technology",
-      "period": "2012 - 2017"
-    },
-    "certificates": [
-      {
-        "title": "Building a basic project - ICP Chat on Internet Computer network",
-        "description": "Project using Rust, Vue and Typescript",
-        "date": "29-31.07.2024"
-      }
-    ],
-    "languages": [
-      {
-        "name": "English",
-        "level": "B2"
-      }
-    ],
+    "ongoing": "Present",
+    "noExpiry": "No expiry",
     "footer": "For references and additional information, please feel free to contact me via phone or email."
   }
 }

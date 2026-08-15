@@ -15,16 +15,6 @@ const loadAiModule = async (): Promise<AiModule> => {
 // 32s — over the previous 30s cap. 60s is the Vercel Hobby ceiling.
 export const maxDuration = 60;
 
-const loadMessagesForLocale = async (locale: string) => {
-  try {
-    const localeModule = await import(`@/../messages/${locale}.json`);
-    return localeModule.default ?? localeModule;
-  } catch (error) {
-    console.warn(`Falling back to English messages for unsupported locale "${locale}".`, error);
-    return (await import(`@/../messages/en.json`)).default;
-  }
-};
-
 const responseSchema = z.object({
   title: z.string().describe('A professional job title that matches the position (e.g., "SENIOR FRONTEND DEVELOPER", "REACT SPECIALIST"). Should be concise and in uppercase.'),
   summary: z.string().describe('A professional summary (2-3 sentences) highlighting relevant experience and skills for the specific job offer. Should be written in first person.'),
@@ -32,11 +22,34 @@ const responseSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const { jobOffer, locale = 'en', ai } = await req.json();
+    const { jobOffer, locale = 'en', ai, cv } = await req.json();
 
     if (!jobOffer || typeof jobOffer !== 'string') {
       return Response.json(
         { error: 'Job offer text is required' },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * The CV comes from the caller, not from `messages/*.json`.
+     *
+     * It used to be read out of the translations file, which stopped being true
+     * the moment the CV moved into the document store: `messages` now holds
+     * section headings and a footer, so tailoring against it was writing a
+     * summary for a candidate whose entire history was the word "Education".
+     * The document lives in the browser's IndexedDB and this is a server route,
+     * so the browser sends it — the same direction `POST /document` will send it
+     * to the runtime.
+     */
+    const cvData = cv;
+
+    if (!cvData || typeof cvData !== 'object') {
+      return Response.json(
+        {
+          error:
+            'No CV was sent with the request. Tailoring reads the CV document held in the browser; it is no longer in the translation files.'
+        },
         { status: 400 }
       );
     }
@@ -46,10 +59,6 @@ export async function POST(req: Request) {
       resolveModel(ai ?? {})
     ]);
     const { generateObject } = aiModule;
-
-    // Load CV data from translations
-    const translations = await loadMessagesForLocale(locale);
-    const cvData = (translations as Record<string, unknown>).cv;
 
     // Determine output language based on locale
     const languageInstruction = locale === 'pl' 
