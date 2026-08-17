@@ -6,8 +6,10 @@ import jsPDF from "jspdf";
 import { A4_DIMENSIONS } from "../constants";
 import {
   addTextLayer,
+  collectTextLines,
   registerTextLayerFont,
   TEXT_LAYER_FONT,
+  type TextLine,
 } from "../utils/pdfTextLayer";
 
 interface UsePDFGeneratorOptions {
@@ -91,9 +93,12 @@ type LinkAnnotation = {
   height: number;
 };
 
+/** What one page's clone gives up before it is rasterised. */
+type PageOverlay = { links: LinkAnnotation[]; lines: TextLine[] };
+
 /**
- * Makes html2canvas's clone look like the printed page, and reads the links off
- * it on the way past.
+ * Makes html2canvas's clone look like the printed page, and reads the links and
+ * the words off it on the way past.
  *
  * html2canvas rasterises the screen rendering, so `@media print` never applies
  * and every control marked `print:hidden` would otherwise be in the file — most
@@ -114,7 +119,7 @@ type LinkAnnotation = {
  * Nothing here can overflow a page: every item was already assigned to one, and
  * all of this only ever makes a page's content shorter.
  */
-const prepareCloneForExport = (page: HTMLElement): LinkAnnotation[] => {
+const prepareCloneForExport = (page: HTMLElement): PageOverlay => {
   page.querySelectorAll<HTMLElement>('[class~="print:hidden"]').forEach(
     (element) => {
       element.style.display = "none";
@@ -131,8 +136,9 @@ const prepareCloneForExport = (page: HTMLElement): LinkAnnotation[] => {
 
   /**
    * The page arrives in the PDF as a raster, so an anchor in the DOM is just
-   * pixels by the time it lands. jsPDF's link annotations are the way back: a
-   * rectangle and a URL, laid over what was drawn.
+   * pixels by the time it lands, and so is every word. jsPDF's link annotations
+   * and the invisible text layer are the way back: rectangles and strings, laid
+   * over what was drawn.
    *
    * Measured here, last, in the tree that is about to be rasterised rather than
    * on the live page — the collapsing above moves everything below it, and a
@@ -158,7 +164,7 @@ const prepareCloneForExport = (page: HTMLElement): LinkAnnotation[] => {
     });
   });
 
-  return annotations;
+  return { links: annotations, lines: collectTextLines(page) };
 };
 
 /**
@@ -227,7 +233,7 @@ export function usePDFGenerator(
 
         setProgress(10 + (i / pages.length) * 80); // 10-90%
 
-        let links: LinkAnnotation[] = [];
+        let overlay: PageOverlay = { links: [], lines: [] };
 
         // Render page to canvas with high quality
         const canvas = await html2canvas(page, {
@@ -238,7 +244,7 @@ export function usePDFGenerator(
           windowWidth: A4_DIMENSIONS.width,
           windowHeight: A4_DIMENSIONS.height,
           onclone: (_clonedDocument, clonedPage) => {
-            links = prepareCloneForExport(clonedPage);
+            overlay = prepareCloneForExport(clonedPage);
           },
         });
 
@@ -253,15 +259,14 @@ export function usePDFGenerator(
         // Add image to PDF
         pdf.addImage(imgData, "PNG", 0, 0, PDF_WIDTH_MM, PDF_HEIGHT_MM, undefined, "FAST");
 
-        // Both go on after the image, so they sit over what they describe. The
-        // text is measured from the live page rather than the clone for the
-        // reason given on the link annotations — and, like them, it depends on
-        // `prepareCloneForExport` having left the geometry alone.
+        // Both go on after the image, so they sit over what they describe, and
+        // both were read off the clone this image was drawn from — the only
+        // tree whose geometry is the geometry in the picture.
         if (hasFont) {
-          addTextLayer(pdf, page, pxToMm, TEXT_LAYER_FONT);
+          addTextLayer(pdf, overlay.lines, pxToMm, TEXT_LAYER_FONT);
         }
 
-        links.forEach(({ url, x, y, width, height }) => {
+        overlay.links.forEach(({ url, x, y, width, height }) => {
           pdf.link(x, y, width, height, { url });
         });
       }

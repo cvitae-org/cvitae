@@ -45,7 +45,9 @@ const documents: Partial<Record<Locale, unknown>> = { en, pl };
  * costs that field rather than the page.
  */
 export const seedDocument = (locale: Locale): CvDocument =>
-  locale in documents ? parseDocument(documents[locale]) : emptyDocument();
+  locale in documents
+    ? parseDocument(documents[locale], locale)
+    : emptyDocument();
 
 export const seedState = (): CvState =>
   Object.fromEntries(

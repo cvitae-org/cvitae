@@ -8,6 +8,7 @@ import {
   type CvEducation,
   type CvExperience,
   type CvLanguage,
+  type CvSkillGroup,
   type CvState
 } from './document';
 import { seedDocument, seedState } from './seed';
@@ -124,6 +125,66 @@ export const setSkills = (
     ...document,
     skills: { ...document.skills, ...patch }
   }));
+
+/**
+ * The skills strip, which is a list like the four sections below but not one of
+ * them: its entries live under `skills` rather than at the top of the document,
+ * so `patchEntry` and friends cannot reach them without being told how to
+ * address a nested list. Four small functions are cheaper than that generality,
+ * and they are the whole of what the strip needs.
+ */
+const editGroups = (
+  locale: Locale,
+  project: (groups: CvSkillGroup[]) => CvSkillGroup[]
+) =>
+  editDocument(locale, (document) => ({
+    ...document,
+    skills: { ...document.skills, groups: project(document.skills.groups) }
+  }));
+
+/** Appends a group with no name and nothing in it, for the caller to fill. */
+export const addSkillGroup = (locale: Locale) =>
+  editGroups(locale, (groups) => [...groups, { label: '', items: [] }]);
+
+export const setSkillGroup = (
+  locale: Locale,
+  index: number,
+  patch: Partial<CvSkillGroup>
+) =>
+  editGroups(locale, (groups) =>
+    index < 0 || index >= groups.length
+      ? groups
+      : groups.map((group, position) =>
+          position === index ? { ...group, ...patch } : group
+        )
+  );
+
+export const removeSkillGroup = (locale: Locale, index: number) =>
+  editGroups(locale, (groups) =>
+    index < 0 || index >= groups.length
+      ? groups
+      : groups.filter((_, position) => position !== index)
+  );
+
+/**
+ * Moves a group up or down the strip.
+ *
+ * Order matters here more than in the sections below, because the strip is read
+ * as one block: the row a reader's eye lands on first should be the one that
+ * matches the job being applied for. Adding always appends, so without this the
+ * only way to put a new group second would be to retype every label under it.
+ */
+export const moveSkillGroup = (locale: Locale, from: number, to: number) =>
+  editGroups(locale, (groups) => {
+    if (from === to || from < 0 || from >= groups.length) return groups;
+    if (to < 0 || to >= groups.length) return groups;
+
+    const next = [...groups];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+
+    return next;
+  });
 
 /**
  * The four sections that are lists of records, which share an editing shape:

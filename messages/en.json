@@ -7,11 +7,6 @@
       "certificates": "Certificates",
       "languages": "Languages"
     },
-    "skillGroups": {
-      "programming_languages": "Languages",
-      "frameworks": "Frameworks",
-      "libraries_and_tools": "Libraries & Tools"
-    },
     "ongoing": "Present",
     "noExpiry": "No expiry",
     "footer": "For references and additional information, please feel free to contact me via phone or email."

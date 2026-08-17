@@ -24,6 +24,25 @@ import type jsPDF from "jspdf";
 type Line = { text: string; left: number; top: number; width: number; height: number };
 
 /**
+ * One line, ready to be written, in pixels relative to the page it belongs to.
+ *
+ * Collected and written in two steps because the two happen in different trees.
+ * The words have to be measured in html2canvas's clone — the tree that is
+ * actually rasterised — and that tree only exists inside `onclone`; the writing
+ * happens afterwards, against a jsPDF page that does not exist yet at that
+ * point. See `collectTextLines`.
+ */
+export type TextLine = {
+  text: string;
+  left: number;
+  width: number;
+  /** Where html2canvas put the glyphs' baseline, not where the browser put it. */
+  baseline: number;
+  /** The size the text is drawn at, so the invisible copy can match it. */
+  fontSize: number;
+};
+
+/**
  * Skipped for the same reason `prepareCloneForExport` hides them: they are not
  * in the picture. Writing their text into the layer would put "+ Add" and every
  * placeholder hint into a document that does not show them — and into whatever
@@ -47,7 +66,10 @@ const linesOf = (node: Text): Line[] => {
   const text = node.data;
   if (!text.trim()) return [];
 
-  const range = document.createRange();
+  // The node's own document, not this one: these are measured in html2canvas's
+  // clone, which lives in an iframe, and a Range belongs to the document that
+  // created it.
+  const range = node.ownerDocument.createRange();
   range.selectNodeContents(node);
 
   const boxes = Array.from(range.getClientRects()).filter(
@@ -113,60 +135,168 @@ const linesOf = (node: Text): Line[] => {
 };
 
 /**
- * Lays the words of one page over the image already placed for it.
+ * Where html2canvas puts a baseline, which is not where the browser puts it.
  *
- * Sized to fit rather than to match. The embedded font is DejaVu Sans, and the
- * CV is set in Myriad Pro — so a line set at the same point size comes out
- * wider, and the selection highlight would run past the words it belongs to.
- * Scaling each line to the width the browser actually gave it costs nothing,
- * because none of these glyphs are drawn.
+ * This is html2canvas's own `FontMetrics.parseMetrics`, reproduced: it renders
+ * an inline image at `vertical-align: baseline` beside a sample of the font and
+ * takes the difference in offsets. Every text run it draws lands at
+ * `bounds.top + baseline`, so this is the authority on where the glyphs in the
+ * picture actually sit.
+ *
+ * Reproduced rather than approximated because the two answers differ by most of
+ * a line. Measured on this CV: the browser's own baseline for a 12px bullet is
+ * 570.6px down the page and html2canvas draws it at 578.0 — so a text layer
+ * placed by the browser's typography sits 7–9px above the words it is supposed
+ * to be over, and selecting a line in the exported PDF highlights the one above
+ * it. The same 8-ish pixels are why `BULLET_EXPORT_PADDING_TOP` exists.
+ *
+ * Note the container is deliberately left at `line-height: normal`: the metric
+ * is a property of the font at a size, not of the box the text ended up in,
+ * which is why one number covers 11px and 12px text alike. Cached because it
+ * costs a synchronous layout and a CV has a handful of distinct fonts.
  */
-export const addTextLayer = (
-  pdf: jsPDF,
-  page: HTMLElement,
-  pxToMm: (px: number) => number,
-  fontName: string
-): number => {
+
+/** Both verbatim from html2canvas, which is the point: same inputs, same answer. */
+const SAMPLE_TEXT = "Hidden Text";
+const SMALL_IMAGE =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+const baselines = new Map<string, number>();
+
+const baselineOffset = (fontFamily: string, fontSize: string): number => {
+  const key = `${fontFamily} ${fontSize}`;
+  const cached = baselines.get(key);
+  if (cached !== undefined) return cached;
+
+  // Measured in this document rather than the clone's, because that is where
+  // html2canvas measures it — `new FontMetrics(document)` in its renderer,
+  // which runs in this window.
+  const container = document.createElement("div");
+  const image = document.createElement("img");
+  const span = document.createElement("span");
+
+  container.style.visibility = "hidden";
+  container.style.fontFamily = fontFamily;
+  container.style.fontSize = fontSize;
+  container.style.margin = "0";
+  container.style.padding = "0";
+  container.style.whiteSpace = "nowrap";
+  document.body.appendChild(container);
+
+  image.src = SMALL_IMAGE;
+  image.width = 1;
+  image.height = 1;
+  image.style.margin = "0";
+  image.style.padding = "0";
+  image.style.verticalAlign = "baseline";
+
+  span.style.fontFamily = fontFamily;
+  span.style.fontSize = fontSize;
+  span.style.margin = "0";
+  span.style.padding = "0";
+  span.appendChild(document.createTextNode(SAMPLE_TEXT));
+
+  container.appendChild(span);
+  container.appendChild(image);
+
+  const baseline = image.offsetTop - span.offsetTop + 2;
+
+  document.body.removeChild(container);
+  baselines.set(key, baseline);
+
+  return baseline;
+};
+
+/**
+ * Reads the words off the tree that is about to be rasterised.
+ *
+ * Must run inside `onclone`, after `prepareCloneForExport` — and on the clone
+ * rather than on the live page, which is what it used to do. The link
+ * annotations were moved for this reason already and the text was left behind:
+ * hiding a control gives its space back, so anything sharing a row with one
+ * slides across in the picture and nowhere else. Measured on this CV, the dates
+ * sat 50px right of their invisible copies, because the "Remove" beside them
+ * collapses; a section's "+ Add" does the same thing vertically to everything
+ * below it.
+ */
+export const collectTextLines = (page: HTMLElement): TextLine[] => {
   const pageRect = page.getBoundingClientRect();
-  const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
-
-  pdf.setFont(fontName, "normal");
-  pdf.setTextColor(0, 0, 0);
-
-  let placed = 0;
+  const view = page.ownerDocument.defaultView ?? window;
+  const walker = page.ownerDocument.createTreeWalker(page, NodeFilter.SHOW_TEXT);
+  const lines: TextLine[] = [];
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = node as Text;
     if (!text.data.trim() || isExcluded(text)) continue;
 
+    const parent = text.parentElement;
+    if (!parent) continue;
+
+    const style = view.getComputedStyle(parent);
+    const offset = baselineOffset(style.fontFamily, style.fontSize);
+    const fontSize = parseFloat(style.fontSize);
+
     for (const line of linesOf(text)) {
       const content = line.text.trim();
       if (!content) continue;
 
-      const heightMm = pxToMm(line.height);
-      const widthMm = pxToMm(line.width);
-
-      // A line box is taller than its glyphs; 0.72 of it lands close to the cap
-      // height for the sizes this document uses.
-      let size = heightMm * 0.72 * (72 / 25.4);
-      pdf.setFontSize(size);
-
-      const natural = pdf.getTextWidth(content);
-      if (natural > 0 && widthMm > 0) {
-        size *= widthMm / natural;
-        pdf.setFontSize(size);
-      }
-
-      pdf.text(
-        content,
-        pxToMm(line.left - pageRect.left),
-        // Placed on the baseline, approximated from the bottom of the line box.
-        pxToMm(line.top - pageRect.top + line.height * 0.8),
-        { renderingMode: "invisible", baseline: "alphabetic" }
-      );
-
-      placed += 1;
+      lines.push({
+        text: content,
+        left: line.left - pageRect.left,
+        width: line.width,
+        baseline: line.top - pageRect.top + offset,
+        fontSize
+      });
     }
+  }
+
+  return lines;
+};
+
+/**
+ * Lays the words of one page over the image already placed for it.
+ *
+ * Set at the size the page is set at, and stretched to the width the browser
+ * gave the line. The embedded font is DejaVu Sans and the CV is Myriad Pro, so
+ * the same string at the same size comes out a different width — and a
+ * selection highlight is drawn from the glyphs, so a line that is too wide
+ * highlights past its last word and one that is too narrow stops short.
+ *
+ * The difference goes into letter spacing rather than into the font size, which
+ * is what it used to do. Shrinking the size to fit made the invisible line
+ * shorter than the visible one as well as narrower — the highlight covered the
+ * bottom two thirds of what it was over — and it moved every character's
+ * position within the line, so clicking into the middle of a word landed
+ * somewhere else. Spacing keeps the glyphs the size they look.
+ */
+export const addTextLayer = (
+  pdf: jsPDF,
+  lines: TextLine[],
+  pxToMm: (px: number) => number,
+  fontName: string
+): number => {
+  pdf.setFont(fontName, "normal");
+  pdf.setTextColor(0, 0, 0);
+
+  let placed = 0;
+
+  for (const line of lines) {
+    const widthMm = pxToMm(line.width);
+    pdf.setFontSize(pxToMm(line.fontSize) * (72 / 25.4));
+
+    const natural = pdf.getTextWidth(line.text);
+
+    // Spread over every glyph including the last, which is how PDF applies it.
+    const charSpace =
+      natural > 0 && widthMm > 0 ? (widthMm - natural) / line.text.length : 0;
+
+    pdf.text(line.text, pxToMm(line.left), pxToMm(line.baseline), {
+      renderingMode: "invisible",
+      baseline: "alphabetic",
+      charSpace
+    });
+
+    placed += 1;
   }
 
   return placed;

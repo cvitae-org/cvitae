@@ -1,5 +1,5 @@
 import type { Locale } from '@/libs/i18n/config';
-import { locales } from '@/libs/i18n/config';
+import { defaultLocale, locales } from '@/libs/i18n/config';
 
 /**
  * The CV, as cvitae holds it.
@@ -18,6 +18,13 @@ import { locales } from '@/libs/i18n/config';
  * of the English one — so the two have no fields in common worth sharing, and a
  * `{ en, pl }` on every string would put that structure in front of every
  * consumer for no gain.
+ *
+ * `skills` is the one field that has since diverged from the runtime, and the
+ * divergence is read-only: the runtime extracts three fixed lists, this holds
+ * named groups, and `parseDocument` accepts either — so an extraction still
+ * lands here untranslated. Nothing sends a document the other way today. When
+ * something does, those three lists are what it has to fold back into, and the
+ * labels below are the names it will find them under.
  */
 
 export type CvLink = { name: string; url: string };
@@ -31,12 +38,31 @@ export type CvPersonal = {
   links: Record<string, string>;
 };
 
+/**
+ * One row of the skills strip: a heading and the list beside it.
+ *
+ * The heading is content, which it was not — it was one of three fixed fields
+ * named by the translation file, and that shape decided on the author's behalf
+ * what their skills are *about*. This CV had a "Styling & Design" row and an
+ * "Other Technologies" row with nowhere to go, so they were folded into a
+ * twenty-eight item `libraries_and_tools` that wraps to three lines and ends on
+ * the word "Jira". A label the document carries costs the fixed keys and buys
+ * rows that can be named, added and removed by the person whose CV it is.
+ *
+ * It also puts the Polish CV's headings in the document rather than in the
+ * interface: what a row is called now travels with the CV it belongs to, like
+ * every other word on the page.
+ */
+export type CvSkillGroup = {
+  label: string;
+  items: string[];
+};
+
 export type CvSkills = {
   /** The current job title, e.g. "Frontend Developer". */
   role: string;
-  programming_languages: string[];
-  frameworks: string[];
-  libraries_and_tools: string[];
+  /** In the order they are shown — a CV leads with what it wants read first. */
+  groups: CvSkillGroup[];
 };
 
 export type CvExperience = {
@@ -90,12 +116,7 @@ export const emptyDocument = (): CvDocument => ({
   updated_at: new Date(0).toISOString(),
   personal: { name: '', email: '', phone: '', location: '', links: {} },
   role_description: '',
-  skills: {
-    role: '',
-    programming_languages: [],
-    frameworks: [],
-    libraries_and_tools: []
-  },
+  skills: { role: '', groups: [] },
   experience: [],
   education: [],
   certificates: [],
@@ -141,6 +162,71 @@ const objectArray = (value: unknown): Record<string, unknown>[] =>
       ) as Record<string, unknown>[])
     : [];
 
+/** The skills fields `extract_cv` returns, and every document stored before groups. */
+const runtimeGroups = [
+  'programming_languages',
+  'frameworks',
+  'libraries_and_tools'
+] as const;
+
+type RuntimeGroup = (typeof runtimeGroups)[number];
+
+const englishGroupLabels: Record<RuntimeGroup, string> = {
+  programming_languages: 'Languages',
+  frameworks: 'Frameworks',
+  libraries_and_tools: 'Libraries & Tools'
+};
+
+/**
+ * What those three lists are called when they arrive without a name.
+ *
+ * These are the old translated headings, moved here from `messages/*.json`
+ * because they stopped being interface: they are now the *initial value* of a
+ * field the user edits, and a value cannot come from `useTranslations` — this
+ * parser runs outside React, against storage and against whatever `extract_cv`
+ * returned. They are read once, when a document that predates named groups is
+ * first opened; after that the label is whatever the page says it is.
+ *
+ * Partial by locale on purpose, matching `./seed`: a language with no entry here
+ * falls back to English rather than making a new locale a migration.
+ */
+const runtimeGroupLabels: Partial<Record<Locale, Record<RuntimeGroup, string>>> = {
+  en: englishGroupLabels,
+  pl: {
+    programming_languages: 'Języki',
+    frameworks: 'Frameworki',
+    libraries_and_tools: 'Biblioteki i narzędzia'
+  }
+};
+
+/**
+ * Reads the skills strip in either shape.
+ *
+ * `groups` when the document has them, the runtime's three lists when it does
+ * not — which covers both a CV stored before this existed and an extraction
+ * that just came back. A blank group survives the round trip deliberately: one
+ * is written the moment "add a group" is clicked, and dropping it here would
+ * lose the row between adding it and typing into it.
+ *
+ * An empty *legacy* list is dropped, because there it means "this CV has no
+ * frameworks" rather than "a row is waiting" — reviving all three as empty rows
+ * would greet every migrated document with headings it never had.
+ */
+const skillGroups = (raw: Record<string, unknown>, locale: Locale): CvSkillGroup[] => {
+  if (Array.isArray(raw.groups)) {
+    return objectArray(raw.groups).map((group) => ({
+      label: text(group.label),
+      items: textArray(group.items)
+    }));
+  }
+
+  const labels = runtimeGroupLabels[locale] ?? englishGroupLabels;
+
+  return runtimeGroups
+    .map((field) => ({ label: labels[field], items: textArray(raw[field]) }))
+    .filter((group) => group.items.length > 0);
+};
+
 const links = (value: unknown): Record<string, string> => {
   if (!value || typeof value !== 'object') return {};
 
@@ -159,8 +245,17 @@ const links = (value: unknown): Record<string, string> => {
  * runtime sends — output that a small model produced from a screenshot. Losing
  * the whole CV to one malformed field is not an acceptable answer, so every
  * field falls back to its empty value independently.
+ *
+ * `locale` names nothing in the document itself; it is only what the skills
+ * strip's headings are read in when the document arrives without any — see
+ * `runtimeGroupLabels`. It defaults rather than being required because most
+ * callers are parsing a document they are about to look at in one language, and
+ * a wrong guess here costs a heading the user can retype, not a field.
  */
-export const parseDocument = (stored: unknown): CvDocument => {
+export const parseDocument = (
+  stored: unknown,
+  locale: Locale = defaultLocale
+): CvDocument => {
   const raw = (stored ?? {}) as Record<string, unknown>;
   const personal = (raw.personal ?? {}) as Record<string, unknown>;
   const skills = (raw.skills ?? {}) as Record<string, unknown>;
@@ -179,9 +274,7 @@ export const parseDocument = (stored: unknown): CvDocument => {
     role_description: text(raw.role_description),
     skills: {
       role: text(skills.role),
-      programming_languages: textArray(skills.programming_languages),
-      frameworks: textArray(skills.frameworks),
-      libraries_and_tools: textArray(skills.libraries_and_tools)
+      groups: skillGroups(skills, locale)
     },
     experience: objectArray(raw.experience).map((entry) => ({
       company: text(entry.company),
@@ -238,7 +331,12 @@ export const parseState = (
       locale,
       // A locale absent from storage is a CV not yet written, not a fault —
       // adding a third language must not require a migration.
-      locale in documents ? parseDocument(documents[locale]) : fallback(locale)
+      // The locale is handed on so a CV stored before skill groups had names
+      // gets them in its own language: the Polish document's headings should
+      // not read "Libraries & Tools" on the one render that names them.
+      locale in documents
+        ? parseDocument(documents[locale], locale)
+        : fallback(locale)
     ])
   ) as CvState;
 };

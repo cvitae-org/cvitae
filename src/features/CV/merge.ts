@@ -106,21 +106,55 @@ export const mergeDocument = (
     filled.push('summary');
   }
 
-  const skills = { ...existing.skills };
+  const skills = {
+    ...existing.skills,
+    groups: existing.skills.groups.map((group) => ({
+      ...group,
+      items: [...group.items]
+    }))
+  };
 
   if (isBlank(skills.role) && !isBlank(incoming.skills.role)) {
     skills.role = incoming.skills.role.trim();
     filled.push('skills.role');
   }
 
-  for (const field of [
-    'programming_languages',
-    'frameworks',
-    'libraries_and_tools'
-  ] as const) {
-    const before = skills[field].length;
-    skills[field] = unionStrings(skills[field], incoming.skills[field]);
-    added.skills += skills[field].length - before;
+  /**
+   * Skills are matched against the *whole* strip, not against the group they
+   * arrive in.
+   *
+   * An extraction has no idea what the rows here are called — it produces the
+   * runtime's three, which `parseDocument` names from a table — so a CV whose
+   * author moved Tailwind from "Libraries & Tools" to their own "Styling &
+   * Design" row would otherwise be handed Tailwind back under the old heading,
+   * and would then list it twice on the page. Matching everything already held
+   * makes an import add only what is genuinely missing.
+   *
+   * What is missing goes into the group whose label matches, and into a new one
+   * when none does. Appending is the honest outcome: the merge never overwrites,
+   * so it has no standing to decide that the runtime's "Libraries & Tools"
+   * belongs in a row the user named something else.
+   */
+  const held = new Set(
+    skills.groups.flatMap((group) => group.items.map((item) => key(item)))
+  );
+
+  for (const group of incoming.skills.groups) {
+    const fresh = group.items
+      .map((item) => item.trim())
+      .filter((item) => item && !held.has(key(item)));
+
+    if (fresh.length === 0) continue;
+    for (const item of fresh) held.add(key(item));
+
+    const match = skills.groups.find(
+      (candidate) => key(candidate.label) === key(group.label)
+    );
+
+    if (match) match.items = [...match.items, ...fresh];
+    else skills.groups.push({ label: group.label, items: fresh });
+
+    added.skills += fresh.length;
   }
 
   /**

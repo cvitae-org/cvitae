@@ -136,11 +136,12 @@ const counts = (cv: CvDocument) => ({
   Education: cv.education.length,
   Certificates: cv.certificates.length,
   Languages: cv.languages.length,
-  Skills:
-    cv.skills.programming_languages.length +
-    cv.skills.frameworks.length +
-    cv.skills.libraries_and_tools.length,
+  Skills: allSkills(cv).length,
 });
+
+/** Every skill on the strip, whatever row it is filed under. */
+const allSkills = (cv: CvDocument): string[] =>
+  cv.skills.groups.flatMap((group) => group.items);
 
 /** Reads a file as the `data:…;base64,…` form the runtime accepts. */
 const toDataUrl = (file: File): Promise<string> =>
@@ -230,7 +231,9 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
     const ai = toRequestOverride(loadSettings());
     const started = Date.now();
 
-    let accumulated = parseDocument({});
+    // The locale rides along so that the runtime's three unnamed skill lists
+    // are headed in the language of the CV being imported into.
+    let accumulated = parseDocument({}, locale);
     let corpus: string | null = null;
 
     /**
@@ -245,11 +248,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
      */
     let knownSkills: string[] = chosen.has("skills")
       ? []
-      : [
-          ...cvDocument.skills.programming_languages,
-          ...cvDocument.skills.frameworks,
-          ...cvDocument.skills.libraries_and_tools,
-        ];
+      : allSkills(cvDocument);
     const failures: string[] = [];
     const degraded: string[] = [];
     let skipped: ImportResult["skipped"] = [];
@@ -309,7 +308,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
           continue;
         }
 
-        const document = parseDocument(payload.document);
+        const document = parseDocument(payload.document, locale);
         accumulated = applySection(accumulated, section.key, document);
 
         if (typeof payload.text === "string" && payload.text) corpus = payload.text;
@@ -317,13 +316,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
         if (Array.isArray(payload.skipped) && payload.skipped.length) skipped = payload.skipped;
         if (Array.isArray(payload.sources) && payload.sources.length) sources = payload.sources;
 
-        if (section.key === "skills") {
-          knownSkills = [
-            ...document.skills.programming_languages,
-            ...document.skills.frameworks,
-            ...document.skills.libraries_and_tools,
-          ];
-        }
+        if (section.key === "skills") knownSkills = allSkills(document);
 
         setSectionState((prev) => ({ ...prev, [section.key]: { state: "done" } }));
       }
@@ -347,7 +340,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
         error: error instanceof Error ? error.message : "The import failed.",
       });
     }
-  }, [files, pasted, chosen, cvDocument]);
+  }, [files, pasted, chosen, cvDocument, locale]);
 
   const merged = useMemo(
     () =>

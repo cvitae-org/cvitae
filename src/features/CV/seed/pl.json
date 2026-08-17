@@ -15,51 +15,72 @@
   "role_description": "Ponad 8 lat doświadczenia w tworzeniu skalowalnych aplikacji internetowych. Specjalizuję się w React i Next.js, z silnym naciskiem na architekture aplikacji i i UX. Pasjonat nowych technologii, w tym Web3 i blockchain.",
   "skills": {
     "role": "FRONTEND DEVELOPER",
-    "programming_languages": [
-      "Javascript",
-      "HTML",
-      "CSS",
-      "JSX",
-      "Typescript",
-      "Rust"
-    ],
-    "frameworks": [
-      "React",
-      "Next.js",
-      "Strapi",
-      "Express",
-      "Node.js",
-      "Gatsby"
-    ],
-    "libraries_and_tools": [
-      "Redux",
-      "jotai",
-      "NX",
-      "Storybook",
-      "jfrog",
-      "React Query",
-      "React Hook Form",
-      "React Router",
-      "Webpack",
-      "Vite",
-      "GraphQL",
-      "i18next",
-      "Design System",
-      "CSS Modules",
-      "SCSS",
-      "Tailwind",
-      "Styled Components",
-      "Chakra UI",
-      "Figma",
-      "Photoshop",
-      "WAGMI",
-      "ethersJS",
-      "ICP Blockchain SDK",
-      "Docker",
-      "Vercel",
-      "Netlify",
-      "Git",
-      "Jira"
+    "groups": [
+      {
+        "label": "Języki",
+        "items": [
+          "Javascript",
+          "HTML",
+          "CSS",
+          "JSX",
+          "Typescript",
+          "Rust"
+        ]
+      },
+      {
+        "label": "Frameworki",
+        "items": [
+          "React",
+          "Next.js",
+          "Strapi",
+          "Express",
+          "Node.js",
+          "Gatsby"
+        ]
+      },
+      {
+        "label": "Biblioteki i narzędzia",
+        "items": [
+          "Redux",
+          "jotai",
+          "NX",
+          "Storybook",
+          "jfrog",
+          "React Query",
+          "React Hook Form",
+          "React Router",
+          "Webpack",
+          "Vite",
+          "GraphQL",
+          "i18next"
+        ]
+      },
+      {
+        "label": "Stylowanie i design",
+        "items": [
+          "Design System",
+          "CSS Modules",
+          "SCSS",
+          "Tailwind",
+          "Styled Components",
+          "Chakra UI",
+          "Figma",
+          "Photoshop"
+        ]
+      },
+      {
+        "label": "Inne technologie",
+        "items": [
+          "WAGMI",
+          "ethersJS",
+          "ICP Blockchain SDK",
+          "Docker",
+          "Vercel",
+          "Netlify",
+          "Git",
+          "Jira"
+        ]
+      }
     ]
   },
   "experience": [

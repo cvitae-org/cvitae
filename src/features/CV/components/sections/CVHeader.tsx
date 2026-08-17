@@ -7,35 +7,53 @@ import { MaskedPortrait } from "../common/MaskedPortrait";
 import { MaskedBackground } from "../common/MaskedBackground";
 import { useCVCustomizationOptional } from "../../contexts/CVCustomizationContext";
 import { EditableText } from "../editing/EditableText";
+import { EmptySection } from "../editing/EmptySection";
+import { EntryControls } from "../editing/EntryControls";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { usePortrait } from "../../hooks/usePortrait";
 import { backgroundScale, backgroundSvgUrl, portraitWidthRatio, shapeSvgUrl } from "../../portrait";
-import { setLink, setPersonal, setRoleDescription, setSkills } from "../../store";
-import type { CvSkills } from "../../document";
+import {
+  addSkillGroup,
+  moveSkillGroup,
+  removeSkillGroup,
+  setLink,
+  setPersonal,
+  setRoleDescription,
+  setSkillGroup,
+  setSkills,
+} from "../../store";
 import { sectionOrder } from "../../order";
 
 /**
- * The skills strip, as three groups rather than five.
+ * The skills strip, as however many rows the CV has.
  *
- * The group labels are translated, which they were not: they were three English
- * strings sitting next to a CV that has a Polish edition, so the Polish page
- * announced its skills as "Languages" and "Libraries & Tools". They are the one
- * part of this section that *is* interface — the values beside them are the
- * document's, and stay in whatever language the document is written in.
+ * It was three, named by the translation file, and before that five named by an
+ * earlier one. Neither number was ever the document's to keep: this CV is read
+ * with "Styling & Design" and "Other Technologies" as their own rows, and the
+ * only way to say so was to edit `messages/*.json` and the schema together. The
+ * headings live in the document now — added, renamed, reordered and removed on
+ * the page like everything else here.
  *
- * The translation file had `languages, frameworks, libraries, styling, other`;
- * the document has three arrays. That is not a loss of information so much as a
- * loss of a distinction the document never drew — "Styling & Design" and "Other
- * Technologies" are both libraries and tools, and an extraction step that had to
- * decide which of five buckets Tailwind belongs in would get it wrong more often
- * than it got it right. They fold into one group, which is also what the runtime
- * extracts into, so nothing has to be translated between the two.
+ * That also settles what the Polish CV's rows are called. Translating the
+ * headings was right while they were interface; it is wrong now that they are
+ * content, because it would render a heading the Polish document does not
+ * contain over a list it does.
  */
-const skillGroups = [
-  "programming_languages",
-  "frameworks",
-  "libraries_and_tools",
-] as const satisfies readonly (keyof CvSkills)[];
+
+/** One row's list, back from the comma-separated line it is edited as. */
+const toItems = (value: string): string[] =>
+  value
+    .split(",")
+    .map((skill) => skill.trim())
+    .filter(Boolean);
+
+/**
+ * Matches the per-bullet control in `CVExperience`, and is a copy of it for the
+ * same reason that one is not `EntryControls`: these are glyphs in a row that
+ * has no space for the word "Remove" three times over.
+ */
+const controlButton =
+  "rounded px-1 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#65B7FF] disabled:pointer-events-none disabled:text-gray-200";
 
 /**
  * The links, which are edited as text.
@@ -198,46 +216,137 @@ export function CVHeader() {
           Skills, as a two-column grid rather than a wrapping right-aligned row.
 
           The row layout worked while there were five groups whose values each
-          fit on one line. Three groups do not divide the same way: everything
-          that is not a language or a framework is one list of twenty-odd items,
-          which wraps to three lines — and right-aligned wrapped text is ragged
-          on the left, so the label was pushed to the far edge of the page and
-          the list ended on a line containing the single word "Jira".
+          fit on one line. Three groups did not divide the same way: everything
+          that was not a language or a framework became one list of twenty-odd
+          items, which wraps to three lines — and right-aligned wrapped text is
+          ragged on the left, so the label was pushed to the far edge of the page
+          and the list ended on a line containing the single word "Jira".
 
           A grid fixes the two things that made it read as broken. Labels share a
           column and end on the same edge, and a value that wraps stays in its
-          own column instead of flowing back under its label.
+          own column instead of flowing back under its label. It holds for any
+          number of rows, which is the other reason it survives groups becoming
+          the user's to name.
+
+          `fit-content(11rem)` rather than `max-content` now that the heading is
+          typed rather than chosen: `max-content` hands the whole width to the
+          longest thing anyone writes, and one long label would push every list
+          on the page into a narrow column. 11rem clears "OTHER TECHNOLOGIES"
+          with room to spare, and anything longer wraps instead of spending the
+          list's width.
         */}
-        <div className="bg-white px-4 py-3">
-          <div className="grid grid-cols-[max-content_1fr] items-baseline gap-x-3 gap-y-1.5">
-            {skillGroups.map((group) => (
-              <React.Fragment key={group}>
-                <span className="text-[11px] text-gray-400 uppercase tracking-wide font-cv whitespace-nowrap text-right">
-                  {t(`skillGroups.${group}`)}
-                </span>
-                {/*
-                  Edited as one comma-separated line, which is how it already
-                  reads. Splitting on commit rather than offering a control per
-                  skill keeps a twenty-item list editable in one gesture, and the
-                  separator is the one people already type.
-                */}
-                <EditableText
-                  value={document.skills[group].join(", ")}
-                  onCommit={(value) =>
-                    setSkills(locale, {
-                      [group]: value
-                        .split(",")
-                        .map((skill) => skill.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                  placeholder="Add skills, separated by commas"
-                  ariaLabel={t(`skillGroups.${group}`)}
-                  className="text-[11px] text-gray-700 font-cv"
-                />
-              </React.Fragment>
-            ))}
-          </div>
+        <div className="group/skills relative bg-white px-4 py-3">
+          {document.skills.groups.length === 0 ? (
+            <EmptySection
+              hint="Languages — Javascript, Typescript"
+              onCreate={() => addSkillGroup(locale)}
+              label="Add the first skill group"
+            />
+          ) : (
+            <div className="grid grid-cols-[fit-content(11rem)_1fr] items-baseline gap-x-3 gap-y-1.5">
+              {document.skills.groups.map((group, index) => (
+                <React.Fragment key={`skill-group-${index}`}>
+                  <EditableText
+                    value={group.label}
+                    onCommit={(value) =>
+                      setSkillGroup(locale, index, { label: value })
+                    }
+                    placeholder="Group"
+                    ariaLabel={`Skill group ${index + 1} heading`}
+                    // Stored as typed and shown in capitals, so the heading a
+                    // reader sees is the strip's own style rather than a demand
+                    // that whoever types "Styling & Design" holds shift.
+                    className="text-[11px] text-gray-400 uppercase tracking-wide font-cv text-right"
+                  />
+                  {/*
+                    The type classes are on the row rather than on the text
+                    inside it. A bare wrapper inherits the page's 16px font, and
+                    an empty box still reserves a line of whatever font it is
+                    set in: measured, that put each row's box at 24.5px against
+                    the 16.5px its text occupies, and spread the five rows over
+                    40px more than the strip had before there was a wrapper.
+                  */}
+                  <div className="group/row relative text-[11px] text-gray-700 font-cv">
+                    {/*
+                      Edited as one comma-separated line, which is how it already
+                      reads. Splitting on commit rather than offering a control
+                      per skill keeps a twenty-item list editable in one gesture,
+                      and the separator is the one people already type.
+                    */}
+                    <EditableText
+                      value={group.items.join(", ")}
+                      onCommit={(value) =>
+                        setSkillGroup(locale, index, { items: toItems(value) })
+                      }
+                      placeholder="Add skills, separated by commas"
+                      ariaLabel={`${group.label || `Skill group ${index + 1}`} skills`}
+                    />
+                    {/*
+                      Out of the flow, for the reason the bullet controls are:
+                      in it they take width off the list, so the strip wraps
+                      earlier on screen than in the export — where they are
+                      removed outright — and the height this header is paginated
+                      against is not the height of the page in the file.
+
+                      Which means they overlay the end of the first line, hence
+                      the white backing. It only ever shows while the row is
+                      hovered or holds focus, and the alternative is a column of
+                      empty space down the right of a document that is mostly
+                      read rather than edited.
+                    */}
+                    <span className="absolute right-0 top-0 flex items-center gap-0.5 bg-white pl-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/row:opacity-100 print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => moveSkillGroup(locale, index, index - 1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${group.label || "this group"} up`}
+                        title="Move up"
+                        className={controlButton}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveSkillGroup(locale, index, index + 1)}
+                        disabled={index === document.skills.groups.length - 1}
+                        aria-label={`Move ${group.label || "this group"} down`}
+                        title="Move down"
+                        className={controlButton}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeSkillGroup(locale, index)}
+                        aria-label={`Remove ${group.label || "this group"}`}
+                        title="Remove this group"
+                        className={controlButton}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+          )}
+
+          {/*
+            Positioned rather than stacked under the rows, again so the measured
+            header and the exported one are the same height. It sits in the
+            strip's bottom padding at the end of the last list, which is where
+            the eye already is when a row is finished — and is revealed with the
+            strip rather than always shown, so a CV nobody is editing reads as a
+            document.
+          */}
+          {document.skills.groups.length > 0 && (
+            <div className="absolute bottom-1 right-4 bg-white pl-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/skills:opacity-100 print:hidden">
+              <EntryControls
+                onAdd={() => addSkillGroup(locale)}
+                addLabel="Add a skill group"
+              />
+            </div>
+          )}
         </div>
       </div>
     </MeasuredItem>

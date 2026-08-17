@@ -18,7 +18,7 @@ import {
   CVLanguages,
   CVFooter,
 } from "./sections";
-import { SheetNavLink } from "@/components/SheetNavLink";
+import { SheetNavigation } from "@/components/SheetNavigation";
 
 interface CVContentProps {
   showControls?: boolean;
@@ -111,37 +111,14 @@ function CVContentInner({ showControls = true }: CVContentProps) {
       {/* CV Content - Centered with download button */}
       <div className="flex items-start justify-center gap-4 px-4 print:px-0">
         {showControls && (
-          <div className="sticky top-8 print:hidden flex flex-col gap-2">
-            <SheetNavLink href="/research" title="Job offer research">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </SheetNavLink>
-            <SheetNavLink href="/submitting" title="Submitting">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                />
-              </svg>
-            </SheetNavLink>
+          <div className="sticky top-8 print:hidden flex flex-col gap-8">
+            <SheetNavigation />
+
+            <div className="flex flex-col gap-2">
+              <CustomizeButton onClick={() => setIsModalOpen(true)} />
+              <CVLanguageSwitcher />
+              <CVDownloadButton filename={filename} />
+            </div>
           </div>
         )}
 
@@ -155,10 +132,8 @@ function CVContentInner({ showControls = true }: CVContentProps) {
           <CVFooter />
         </CVLayout>
 
-        {/* Control Buttons */}
         {showControls && (
           <div className="sticky top-8 print:hidden flex flex-col gap-2">
-            <CustomizeButton onClick={() => setIsModalOpen(true)} />
             <button
               onClick={() => setIsImportOpen(true)}
               title="Import a CV"
@@ -190,8 +165,6 @@ function CVContentInner({ showControls = true }: CVContentProps) {
                 <path strokeLinecap="round" strokeWidth={2} d="M6.5 19c1.2-2.6 3.2-3.9 5.5-3.9s4.3 1.3 5.5 3.9" />
               </svg>
             </button>
-            <CVLanguageSwitcher />
-            <CVDownloadButton filename={filename} />
           </div>
         )}
       </div>
