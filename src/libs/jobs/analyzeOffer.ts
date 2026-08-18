@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import type { LanguageModel } from 'ai';
-import { workModes } from '@/features/JobResearch/types';
+import {
+  offerRequirementCategories,
+  offerRequirementPriorities,
+  workModes
+} from '@/features/JobResearch/types';
 
 /**
  * Offer analysis split across narrow-schema calls.
@@ -48,7 +52,17 @@ const logisticsSchema = z.object({
 
 const dutiesSchema = z.object({
   responsibilities: z.array(z.string()).describe('Day-to-day duties from the offer. Empty array if none listed.'),
-  required_skills: z.array(z.string()).describe('Every skill, technology or qualification the offer requires.')
+  required_skills: z.array(z.string()).describe('Every skill, technology or qualification the offer requires.'),
+  requirements: z
+    .array(
+      z.object({
+        exactText: z.string().describe('The requirement in the offer wording.'),
+        sourceQuote: z.string().describe('A short verbatim quote that proves the requirement.'),
+        category: z.enum(offerRequirementCategories),
+        priority: z.enum(offerRequirementPriorities)
+      })
+    )
+    .describe('All stated requirements, including skills, duties, languages, education, certifications, location and work authorization.')
 });
 
 // Kept deliberately plain. An earlier wording of these two lines made
@@ -159,7 +173,8 @@ const fallbacks: Record<string, unknown> = {
   start_date: 'Not stated',
   how_to_apply: 'Not stated',
   responsibilities: [],
-  required_skills: []
+  required_skills: [],
+  requirements: []
 };
 
 const fallbackFor = (schema: z.ZodTypeAny): Record<string, unknown> => {

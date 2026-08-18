@@ -1,11 +1,17 @@
 import type { Locale } from '@/libs/i18n/config';
 import type {
   ApplyDraft,
+  EvidenceCvVariant,
   OfferSnapshot,
   Submission,
-  SubmittingState,
-  TailoredCV
+  SubmittingState
 } from './types';
+import {
+  approveVariant,
+  editProposalText,
+  rebuildVariant,
+  requiredChangeIds
+} from './evidence';
 import { createPersistedStore } from '@/libs/storage/persistedStore';
 import {
   emptyState,
@@ -95,9 +101,69 @@ export const setActiveSubmission = (id: string | null) => {
   );
 };
 
-/** Records a generated CV. Regenerating replaces it — there is only ever one. */
-export const setTailoredCV = (id: string, cv: TailoredCV) => {
-  mapSubmissions(id, (submission) => ({ ...submission, cv }));
+/** Records a generated evidence draft. The prior approved snapshot is retained by sent entries. */
+export const setEvidenceCV = (id: string, cv: EvidenceCvVariant) => {
+  mapSubmissions(id, (submission) =>
+    submission.sentAt
+      ? submission
+      : {
+          ...submission,
+          cv,
+          cvHistory: submission.cv
+            ? [...(submission.cvHistory ?? []), submission.cv]
+            : submission.cvHistory
+        }
+  );
+};
+
+export const toggleVariantChange = (id: string, changeId: string) => {
+  mapSubmissions(id, (submission) => {
+    if (!submission.cv || submission.cv.reviewState === 'approved') return submission;
+    const accepted = new Set(submission.cv.acceptedChangeIds);
+    if (accepted.has(changeId)) accepted.delete(changeId);
+    else accepted.add(changeId);
+    return {
+      ...submission,
+      cv: { ...submission.cv, acceptedChangeIds: [...accepted] }
+    };
+  });
+};
+
+export const acceptAllVariantChanges = (id: string) => {
+  mapSubmissions(id, (submission) =>
+    !submission.cv || submission.cv.reviewState === 'approved'
+      ? submission
+      : {
+          ...submission,
+          cv: {
+            ...submission.cv,
+            acceptedChangeIds: requiredChangeIds(submission.cv)
+          }
+        }
+  );
+};
+
+export const editVariantChange = (id: string, changeId: string, text: string) => {
+  mapSubmissions(id, (submission) => {
+    if (!submission.cv || submission.cv.reviewState === 'approved') return submission;
+    const proposal = editProposalText(submission.cv.proposal, changeId, text);
+    return {
+      ...submission,
+      cv: rebuildVariant(
+        submission.cv,
+        proposal,
+        submission.cv.acceptedChangeIds.filter((accepted) => accepted !== changeId)
+      )
+    };
+  });
+};
+
+export const approveEvidenceCV = (id: string) => {
+  mapSubmissions(id, (submission) =>
+    submission.cv
+      ? { ...submission, cv: approveVariant(submission.cv) }
+      : submission
+  );
 };
 
 /**
@@ -109,7 +175,9 @@ export const setTailoredCV = (id: string, cv: TailoredCV) => {
  * instead of silent.
  */
 export const setLanguage = (id: string, language: Locale) => {
-  mapSubmissions(id, (submission) => ({ ...submission, language }));
+  mapSubmissions(id, (submission) =>
+    submission.sentAt ? submission : { ...submission, language }
+  );
 };
 
 /**
@@ -119,11 +187,15 @@ export const setLanguage = (id: string, language: Locale) => {
  * flagged as predating it.
  */
 export const setOffer = (id: string, offer: OfferSnapshot) => {
-  mapSubmissions(id, (submission) => ({
-    ...submission,
-    offer,
-    offerUpdatedAt: new Date().toISOString()
-  }));
+  mapSubmissions(id, (submission) =>
+    submission.sentAt
+      ? submission
+      : {
+          ...submission,
+          offer,
+          offerUpdatedAt: new Date().toISOString()
+        }
+  );
 };
 
 export const patchApply = (id: string, patch: Partial<ApplyDraft>) => {

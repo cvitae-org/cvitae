@@ -1,6 +1,28 @@
 import { NOT_STATED } from '@/features/JobResearch/types';
-import type { ApplyDraft, OfferSnapshot, Submission, SubmittingState } from './types';
-import { asLocale } from './types';
+import {
+  normalizeOfferText,
+  normalizeRequirements
+} from '@/features/JobResearch/requirements';
+import { parseDocument } from '@/features/CV/document';
+import type {
+  ApplyDraft,
+  EvidenceCvProposal,
+  EvidenceCvVariant,
+  LegacyCvVariant,
+  OfferSnapshot,
+  Submission,
+  SubmittingState
+} from './types';
+import { asLocale, requirementMatchStatuses } from './types';
+import {
+  buildCvFactCatalog,
+  fingerprintCv,
+  fingerprintOffer,
+  proposalMaterializationIssues,
+  protectedFieldIssues,
+  requiredChangeIds,
+  validateEvidenceProposal
+} from './evidence';
 
 /**
  * What a stored queue of applications means.
@@ -13,7 +35,7 @@ import { asLocale } from './types';
  */
 
 export const STORAGE_KEY = 'cvitae.submitting.v1';
-const STORAGE_VERSION = 1;
+export const STORAGE_VERSION = 2;
 
 type StoredPayload = {
   version: number;
@@ -70,8 +92,13 @@ const toSnapshot = (value: unknown): OfferSnapshot => {
     team: text('team'),
     how_to_apply: text('how_to_apply'),
     required_skills: strList(raw.required_skills),
+    requirements: normalizeRequirements(raw.requirements, {
+      required_skills: strList(raw.required_skills),
+      responsibilities: strList(raw.responsibilities)
+    }),
     source_url: str(raw.source_url),
-    locale: str(raw.locale, 'en')
+    locale: str(raw.locale, 'en'),
+    offer_text: normalizeOfferText(str(raw.offer_text))
   };
 };
 
@@ -87,6 +114,164 @@ const toApply = (value: unknown): ApplyDraft => {
   };
 };
 
+const toLegacyVariant = (value: unknown): LegacyCvVariant | null => {
+  if (typeof value !== 'object' || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  const summary = str(raw.summary);
+  if (!summary.trim()) return null;
+  return {
+    version: 'legacy-v1-unverified',
+    title: str(raw.title),
+    summary,
+    language: asLocale(raw.language),
+    generatedAt: str(raw.generatedAt) || new Date(0).toISOString(),
+    historicalSentAt:
+      typeof raw.historicalSentAt === 'string'
+        ? raw.historicalSentAt
+        : undefined
+  };
+};
+
+const stringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+const citedText = (value: unknown): boolean => {
+  if (typeof value !== 'object' || value === null) return false;
+  const raw = value as Record<string, unknown>;
+  return (
+    typeof raw.text === 'string' &&
+    stringArray(raw.evidenceIds) &&
+    stringArray(raw.requirementIds)
+  );
+};
+
+const toProposal = (value: unknown): EvidenceCvProposal | null => {
+  if (typeof value !== 'object' || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  if (
+    !citedText(raw.headline) ||
+    !Array.isArray(raw.summaryClaims) ||
+    !raw.summaryClaims.every(citedText) ||
+    !Array.isArray(raw.skills) ||
+    !raw.skills.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Record<string, unknown>).evidenceId === 'string' &&
+        stringArray((item as Record<string, unknown>).requirementIds)
+    ) ||
+    !Array.isArray(raw.experience) ||
+    !raw.experience.every((entry) => {
+      if (typeof entry !== 'object' || entry === null) return false;
+      const item = entry as Record<string, unknown>;
+      return (
+        typeof item.jobIndex === 'number' &&
+        Array.isArray(item.bullets) &&
+        item.bullets.every(
+          (bullet) =>
+            citedText(bullet) &&
+            typeof (bullet as Record<string, unknown>).sourceEvidenceId === 'string'
+        )
+      );
+    }) ||
+    !Array.isArray(raw.requirementMatches) ||
+    !raw.requirementMatches.every((entry) => {
+      if (typeof entry !== 'object' || entry === null) return false;
+      const item = entry as Record<string, unknown>;
+      return (
+        typeof item.requirementId === 'string' &&
+        typeof item.status === 'string' &&
+        (requirementMatchStatuses as readonly string[]).includes(item.status) &&
+        stringArray(item.evidenceIds) &&
+        typeof item.explanation === 'string'
+      );
+    })
+  ) {
+    return null;
+  }
+  return raw as unknown as EvidenceCvProposal;
+};
+
+/** Defensive reconstruction of v2 while keeping snapshot documents parseable. */
+const toEvidenceVariant = (value: unknown): EvidenceCvVariant | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const raw = value as Record<string, unknown>;
+  if (raw.version !== 'evidence-v2') return undefined;
+  const source =
+    typeof raw.source === 'object' && raw.source !== null
+      ? (raw.source as Record<string, unknown>)
+      : null;
+  const meta =
+    typeof raw.meta === 'object' && raw.meta !== null
+      ? (raw.meta as Record<string, unknown>)
+      : null;
+  const proposal = toProposal(raw.proposal);
+  if (
+    !source ||
+    !meta ||
+    !proposal
+  ) {
+    return undefined;
+  }
+
+  const language = asLocale(meta.language);
+  const sourceCv = parseDocument(source.cv, language);
+  const sourceOffer = toSnapshot(source.offer);
+  const output = parseDocument(raw.output, language);
+  const cvFingerprint = str(source.cvFingerprint);
+  const offerFingerprint = str(source.offerFingerprint);
+  const acceptedChangeIds = strList(raw.acceptedChangeIds);
+  const reconstructed: EvidenceCvVariant = {
+    version: 'evidence-v2',
+    id: str(raw.id) || `variant-${Date.now()}`,
+    source: {
+      cv: sourceCv,
+      offer: sourceOffer,
+      cvFingerprint,
+      offerFingerprint
+    },
+    output,
+    proposal,
+    acceptedChangeIds,
+    reviewState: 'draft',
+    meta: {
+      provider: str(meta.provider, 'unknown'),
+      model: str(meta.model, 'unknown'),
+      promptVersion: str(meta.promptVersion, 'unknown'),
+      generatedAt: str(meta.generatedAt) || new Date(0).toISOString(),
+      updatedAt: str(meta.updatedAt) || str(meta.generatedAt) || new Date(0).toISOString(),
+      language
+    }
+  };
+  const accepted = new Set(acceptedChangeIds);
+  const locallyValid =
+    cvFingerprint === fingerprintCv(sourceCv) &&
+    offerFingerprint === fingerprintOffer(sourceOffer) &&
+    protectedFieldIssues(sourceCv, output).length === 0 &&
+    proposalMaterializationIssues(
+      sourceCv,
+      output,
+      proposal,
+      language
+    ).length === 0 &&
+    validateEvidenceProposal(
+      proposal,
+      buildCvFactCatalog(sourceCv, language),
+      sourceOffer.requirements
+    ).length === 0 &&
+    requiredChangeIds(reconstructed).every((id) => accepted.has(id));
+
+  return {
+    ...reconstructed,
+    reviewState:
+      raw.reviewState === 'approved' && locallyValid ? 'approved' : 'draft',
+    approvedAt:
+      raw.reviewState === 'approved' && locallyValid && typeof raw.approvedAt === 'string'
+        ? raw.approvedAt
+        : undefined
+  };
+};
+
 /**
  * An entry is kept if it can be identified and pointed at an offer. Everything
  * below that — the draft, the tailored CV — is optional by design: a submission
@@ -98,12 +283,32 @@ const toSubmission = (value: unknown): Submission | null => {
   const raw = value as Record<string, unknown>;
   if (typeof raw.id !== 'string') return null;
 
-  const cv =
+  const cvRaw =
     typeof raw.cv === 'object' && raw.cv !== null
       ? (raw.cv as Record<string, unknown>)
       : null;
 
   const offer = toSnapshot(raw.offer);
+
+  const evidenceCv = toEvidenceVariant(raw.cv);
+  const cvHistory = Array.isArray(raw.cvHistory)
+    ? raw.cvHistory
+        .map(toEvidenceVariant)
+        .filter((item): item is EvidenceCvVariant => item !== undefined)
+    : [];
+  const existingLegacy = Array.isArray(raw.legacyVariants)
+    ? raw.legacyVariants
+        .map(toLegacyVariant)
+        .filter((item): item is LegacyCvVariant => item !== null)
+    : [];
+  const migratedLegacy =
+    !evidenceCv && cvRaw
+      ? toLegacyVariant({
+          ...cvRaw,
+          language: cvRaw.language ?? raw.language ?? offer.locale,
+          historicalSentAt: raw.sentAt
+        })
+      : null;
 
   return {
     id: raw.id,
@@ -115,18 +320,11 @@ const toSubmission = (value: unknown): Submission | null => {
     // given had it existed.
     language: asLocale(raw.language ?? offer.locale),
     queuedAt: str(raw.queuedAt) || new Date().toISOString(),
-    // A CV with no summary is not a tailored CV; treat it as not generated
-    // rather than rendering the default document as if it were customised.
-    cv:
-      cv && typeof cv.summary === 'string' && cv.summary.trim()
-        ? {
-            title: str(cv.title),
-            summary: cv.summary,
-            // Entries written before the language was recorded were generated
-            // in the only language there was: the submission's.
-            language: asLocale(cv.language ?? raw.language ?? offer.locale),
-            generatedAt: str(cv.generatedAt) || new Date().toISOString()
-          }
+    cv: evidenceCv,
+    cvHistory: cvHistory.length > 0 ? cvHistory : undefined,
+    legacyVariants:
+      migratedLegacy || existingLegacy.length > 0
+        ? [...existingLegacy, ...(migratedLegacy ? [migratedLegacy] : [])]
         : undefined,
     apply: toApply(raw.apply),
     offerUpdatedAt:

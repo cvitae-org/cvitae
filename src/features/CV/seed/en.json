@@ -19,11 +19,11 @@
       {
         "label": "Languages",
         "items": [
-          "Javascript",
+          "JavaScript",
           "HTML",
           "CSS",
           "JSX",
-          "Typescript",
+          "TypeScript",
           "Rust"
         ]
       },
@@ -42,10 +42,10 @@
         "label": "Libraries & Tools",
         "items": [
           "Redux",
-          "jotai",
+          "Jotai",
           "NX",
           "Storybook",
-          "jfrog",
+          "JFrog",
           "React Query",
           "React Hook Form",
           "React Router",
@@ -72,7 +72,7 @@
         "label": "Other Technologies",
         "items": [
           "WAGMI",
-          "ethersJS",
+          "ethers.js",
           "ICP Blockchain SDK",
           "Docker",
           "Vercel",
@@ -92,7 +92,7 @@
       "highlights": [
         "Led frontend architecture for a Solana-based DeFi trading platform, delivering sub-second WebSocket updates for real-time wallet tracking and trade execution.",
         "Engineered portfolio analytics dashboard with live PnL, position tracking, and token performance metrics—processing thousands of on-chain events.",
-        "Designed modular component architecture using Zustand, React Query, and strict TypeScript, reducing codebase complexity",
+        "Designed modular component architecture using Zustand, React Query, and strict TypeScript, reducing codebase complexity.",
         "Shipped production-ready trading UI with TradingView integration, draggable layouts, and responsive tables optimized for high-frequency data streams.",
         "Established domain-driven patterns and separation of concerns adopted as team-wide frontend standards."
       ],
@@ -186,7 +186,7 @@
   "certificates": [
     {
       "name": "Building a basic project - ICP Chat on Internet Computer network",
-      "issuer": "Project using Rust, Vue and Typescript",
+      "issuer": "Project using Rust, Vue and TypeScript",
       "started": "29-31.07.2024",
       "finished": null
     }

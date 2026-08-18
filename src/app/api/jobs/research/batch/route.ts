@@ -2,6 +2,7 @@ import { AiConfigError, resolveProviderId } from '@/libs/ai/providers';
 import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import { runBatchCapability, toRuntimeModel } from '@/libs/runtime/client';
 import { sseFrame } from '@/libs/runtime/sse';
+import { withNormalizedRequirements } from '@/features/JobResearch/requirements';
 
 /**
  * Analyses many stored offers in one go, streaming each row back as it lands.
@@ -157,7 +158,7 @@ export async function POST(req: Request) {
             id: offer.id,
             status: 'ok',
             record: {
-              ...analysis,
+              ...withNormalizedRequirements(analysis, offer.offerText),
               source_note: notes.join(' '),
               checked_at: new Date().toISOString(),
               locale

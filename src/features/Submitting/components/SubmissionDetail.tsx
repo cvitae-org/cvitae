@@ -8,15 +8,16 @@ import type { Submission } from '../types';
 import {
   applyMethodOf,
   countOfferGaps,
-  isCvStale,
-  isSendable,
-  stageOf
+  isSendable
 } from '../types';
 import { defaultSubject } from '../offerText';
 import { patchApply, setLanguage } from '../store';
 import { reopenSubmission, sendSubmission } from '../queue';
 import { buildMailto, MAILTO_SAFE_BODY } from '../send';
 import type { PendingAction } from '../hooks/useSubmitting';
+import { variantStalenessReasons } from '../evidence';
+import { EvidenceReview } from './EvidenceReview';
+import { ReadinessPanel } from '@/features/CV/components/ReadinessPanel';
 
 /**
  * One application, from a queued offer to a sent email.
@@ -184,9 +185,17 @@ export function SubmissionDetail({
   // `cv.name`. A person's name is not a translation, and the copy under
   // `messages` could not be corrected by editing the CV.
   const { document: cvDocument } = useCvDocument(submission.language);
-  const stage = stageOf(submission);
   const method = applyMethodOf(submission);
   const sent = Boolean(submission.sentAt);
+  const staleReasons =
+    cv && !sent
+      ? variantStalenessReasons(
+          cv,
+          cvDocument,
+          submission.offer,
+          submission.language
+        )
+      : [];
 
   // Any model call blocks the others: they share one panel, and a second
   // click landing on top of the first would leave the panel describing work
@@ -217,7 +226,7 @@ export function SubmissionDetail({
   }, [apply.body]);
 
   const overLong = apply.body.length > MAILTO_SAFE_BODY;
-  const sendable = isSendable(submission);
+  const sendable = isSendable(submission) && staleReasons.length === 0;
 
   /**
    * Where the send goes: a pre-written draft in the mail client, or the
@@ -262,7 +271,7 @@ export function SubmissionDetail({
           <LanguagePicker
             value={submission.language}
             onChange={(language) => setLanguage(submission.id, language)}
-            disabled={busy}
+            disabled={busy || sent}
           />
 
           {/* The research table's own two actions, on the offer being applied
@@ -272,7 +281,7 @@ export function SubmissionDetail({
             <button
               type="button"
               onClick={() => onAnalyse(submission)}
-              disabled={busy}
+              disabled={busy || sent}
               title="Fill the analysed fields from the stored text (no re-fetch)"
               aria-label={`Analyse the stored text for ${offer.position} at ${offer.company}`}
               className="rounded-md p-1.5 text-gray-300 transition-colors hover:bg-gray-100 hover:text-[#65B7FF] disabled:opacity-40"
@@ -301,7 +310,7 @@ export function SubmissionDetail({
             <button
               type="button"
               onClick={() => onRerun(submission)}
-              disabled={busy}
+              disabled={busy || sent}
               title="Read the posting again and re-run the analysis"
               aria-label={`Re-run the analysis for ${offer.position} at ${offer.company}`}
               className="rounded-md p-1.5 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
@@ -378,54 +387,34 @@ export function SubmissionDetail({
 
       <Step
         index={1}
-        title="Tailor the CV"
-        hint={`Rewrites the title and summary for this offer, in ${submission.language.toUpperCase()}. Everything else on the CV is fact and stays as it is.`}
-        done={Boolean(cv)}
+        title="Build and review the evidence CV"
+        hint={`Proposes a cited headline, summary, skill order and factual bullet selection in ${submission.language.toUpperCase()}. Protected facts are materialized locally.`}
+        done={cv?.reviewState === 'approved'}
       >
-        {cv ? (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-[10px] uppercase tracking-wider text-gray-400">
-              Title
-            </p>
-            <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              {cv.title}
-            </p>
-            <p className="mt-2.5 text-[10px] uppercase tracking-wider text-gray-400">
-              Summary
-            </p>
-            <p className="mt-0.5 text-sm italic leading-relaxed text-gray-700">
-              {cv.summary}
-            </p>
-            <p className="mt-2.5 text-[11px] text-gray-400">
-              Generated {new Date(cv.generatedAt).toLocaleString()} in{' '}
-              {cv.language.toUpperCase()} — the full CV is below.
-            </p>
+        {cv && (
+          <EvidenceReview
+            submissionId={submission.id}
+            variant={cv}
+            staleReasons={staleReasons}
+            sent={sent}
+          />
+        )}
 
-            {/* Two ways a generated CV goes out of date, both of them silent
-                without saying so: the language moved on under it, or the offer
-                it was written from got fuller. */}
-            {cv.language !== submission.language && (
-              <p className="mt-2 text-xs text-amber-700">
-                The application is now set to{' '}
-                {submission.language.toUpperCase()} — regenerate to write the
-                title and summary in it. The rest of the CV below has already
-                switched.
-              </p>
-            )}
-
-            {isCvStale(submission) && (
-              <p className="mt-2 text-xs text-amber-700">
-                The offer was analysed again after this was written — regenerate
-                to use what that filled in.
-              </p>
-            )}
-          </div>
+        {!cv && submission.legacyVariants?.length ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            A legacy tailored title/summary was preserved as unverified history.
+            It has no claim evidence, so regenerate and review before sending.
+          </p>
         ) : null}
+
+        <div className="mt-3">
+          <ReadinessPanel document={cv?.output ?? cvDocument} variant={cv} />
+        </div>
 
         <button
           type="button"
           onClick={() => onGenerateCv(submission)}
-          disabled={busy}
+          disabled={busy || sent}
           className={`mt-3 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 ${
             cv
               ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:bg-white disabled:opacity-50'
@@ -452,7 +441,7 @@ export function SubmissionDetail({
                   d="M13 10V3L4 14h7v7l9-11h-7z"
                 />
               </svg>
-              {cv ? 'Regenerate' : 'Generate CV'}
+              {cv ? 'Generate new evidence draft' : 'Generate evidence CV'}
             </>
           )}
         </button>
@@ -628,7 +617,9 @@ export function SubmissionDetail({
                 {...(method === 'email'
                   ? {}
                   : { target: '_blank', rel: 'noopener noreferrer' })}
-                onClick={() => sendSubmission(submission.id)}
+                onClick={(event) => {
+                  if (!sendSubmission(submission.id)) event.preventDefault();
+                }}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#65B7FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#529ED5]"
               >
                 <SendIcon />
@@ -647,13 +638,17 @@ export function SubmissionDetail({
               </button>
             )}
 
-            {stage !== 'ready' && (
+            {!sendable && (
               <p className="mt-2 text-xs text-gray-500">
                 {!cv
                   ? 'Generate the CV first — it is what is being sent.'
-                  : method === 'email'
-                    ? 'Write or draft the message first.'
-                    : 'This offer has no address and no link, so there is nowhere to send it. Add an address above.'}
+                  : cv.reviewState !== 'approved'
+                    ? 'Review every change and approve the CV first.'
+                    : staleReasons.length > 0
+                      ? `Regenerate the stale CV first: ${staleReasons.join(', ')}.`
+                      : method === 'email'
+                        ? 'Write or draft the message first.'
+                        : 'This offer has no address and no link, so there is nowhere to send it. Add an address above.'}
               </p>
             )}
           </>

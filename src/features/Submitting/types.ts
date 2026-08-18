@@ -1,4 +1,8 @@
-import type { JobRecord, OfferAnalysis } from '@/features/JobResearch/types';
+import type {
+  JobRecord,
+  OfferAnalysis,
+  OfferRequirement
+} from '@/features/JobResearch/types';
 import { NOT_STATED } from '@/features/JobResearch/types';
 import { defaultLocale, locales, type Locale } from '@/libs/i18n/config';
 
@@ -12,33 +16,161 @@ import { defaultLocale, locales, type Locale } from '@/libs/i18n/config';
  */
 
 /**
- * The offer as it stood when it was queued, minus the scraped text.
+ * The offer as it stood when it was queued, including the normalized text that
+ * was actually analysed.
  *
  * A copy rather than a pointer, because the research row it came from can be
  * deleted, re-analysed, or lost with its tab, and an application already in
- * flight must not blank out when that happens. The offer text is deliberately
- * left behind — it is the largest thing in the record, it already sits in the
- * research store, and copying it per submission is the fastest route to a
- * localStorage quota failure. `toOfferBrief` reads the live row for it when a
- * prompt needs it, and falls back to these fields when the row is gone.
+ * flight must not blank out when that happens. IndexedDB has replaced the old
+ * localStorage constraint, so the posting is copied: an expiring research row
+ * cannot otherwise reproduce the requirements behind an approved variant.
  */
 export type OfferSnapshot = OfferAnalysis & {
   source_url: string;
   locale: string;
+  /** Normalized posting text frozen with the application. */
+  offer_text: string;
 };
 
-/** The tailored half of the CV: everything else is the same document. */
-export type TailoredCV = {
+import type { CvDocument } from '@/features/CV/document';
+
+export type CvEvidenceFactKind =
+  | 'role'
+  | 'summary'
+  | 'skill'
+  | 'experience-title'
+  | 'experience-bullet'
+  | 'education'
+  | 'certificate'
+  | 'language';
+
+export type CvEvidenceFact = {
+  id: string;
+  kind: CvEvidenceFactKind;
+  text: string;
+  jobIndex?: number;
+  bulletIndex?: number;
+  groupIndex?: number;
+  itemIndex?: number;
+  groupLabel?: string;
+};
+
+export type SanitizedCvCatalog = {
+  version: 1;
+  language: Locale;
+  facts: CvEvidenceFact[];
+};
+
+export type EvidenceReference = {
+  evidenceIds: string[];
+  requirementIds: string[];
+};
+
+export type CitedText = EvidenceReference & { text: string };
+
+export type ProposedSkill = {
+  evidenceId: string;
+  requirementIds: string[];
+};
+
+export type ProposedBullet = CitedText & {
+  sourceEvidenceId: string;
+};
+
+export type ProposedExperience = {
+  jobIndex: number;
+  bullets: ProposedBullet[];
+};
+
+export const requirementMatchStatuses = [
+  'direct',
+  'transferable',
+  'missing',
+  'needs-confirmation'
+] as const;
+export type RequirementMatchStatus =
+  (typeof requirementMatchStatuses)[number];
+
+export type RequirementEvidenceMatch = {
+  requirementId: string;
+  status: RequirementMatchStatus;
+  evidenceIds: string[];
+  explanation: string;
+};
+
+/** The only shape an external model may propose. */
+export type EvidenceCvProposal = {
+  headline: CitedText;
+  summaryClaims: CitedText[];
+  skills: ProposedSkill[];
+  experience: ProposedExperience[];
+  requirementMatches: RequirementEvidenceMatch[];
+};
+
+export type EvidenceGenerateRequest = {
+  version: 'evidence-v2';
+  language: Locale;
+  sourceCvFingerprint: string;
+  sourceOfferFingerprint: string;
+  candidate: SanitizedCvCatalog;
+  offer: {
+    company: string;
+    position: string;
+    requirements: OfferRequirement[];
+  };
+};
+
+export type EvidenceProposalResponse = {
+  version: 'evidence-v2';
+  proposal: EvidenceCvProposal;
+  provider: string;
+  model: string;
+  promptVersion: string;
+  generatedAt: string;
+};
+
+export type EvidenceCvVariant = {
+  version: 'evidence-v2';
+  id: string;
+  source: {
+    cv: CvDocument;
+    offer: OfferSnapshot;
+    cvFingerprint: string;
+    offerFingerprint: string;
+  };
+  output: CvDocument;
+  proposal: EvidenceCvProposal;
+  acceptedChangeIds: string[];
+  reviewState: 'draft' | 'approved';
+  approvedAt?: string;
+  meta: {
+    provider: string;
+    model: string;
+    promptVersion: string;
+    generatedAt: string;
+    updatedAt: string;
+    language: Locale;
+  };
+};
+
+export type EvidenceChange = {
+  id: string;
+  label: string;
+  before: string;
+  after: string;
+  evidence: string[];
+  requirements: string[];
+  editable: boolean;
+};
+
+/** Kept for audit only; it has no evidence and cannot be approved or sent. */
+export type LegacyCvVariant = {
+  version: 'legacy-v1-unverified';
   title: string;
   summary: string;
-  /**
-   * What it was written in, which is not necessarily what the application is
-   * set to now. Recorded so that switching the language after generating says
-   * so, instead of leaving an English summary inside a Polish CV.
-   */
   language: Locale;
-  /** ISO timestamp. Shows whether the preview predates the last edit. */
   generatedAt: string;
+  historicalSentAt?: string;
 };
 
 /**
@@ -75,7 +207,10 @@ export type Submission = {
   language: Locale;
   /** ISO timestamp of when it was queued. */
   queuedAt: string;
-  cv?: TailoredCV;
+  cv?: EvidenceCvVariant;
+  /** Frozen predecessors retained when an unsent variant is regenerated. */
+  cvHistory?: EvidenceCvVariant[];
+  legacyVariants?: LegacyCvVariant[];
   apply: ApplyDraft;
   /**
    * ISO timestamp of the last time the offer snapshot was refreshed by
@@ -119,13 +254,6 @@ export const countOfferGaps = (offer: OfferSnapshot): number => {
 };
 
 /** Whether the CV was written before the offer was last re-analysed. */
-export const isCvStale = (submission: Submission): boolean =>
-  Boolean(
-    submission.cv &&
-      submission.offerUpdatedAt &&
-      submission.offerUpdatedAt > submission.cv.generatedAt
-  );
-
 export type SubmittingState = {
   submissions: Submission[];
   /** Which one the detail panel is showing. Null before anything is picked. */
@@ -163,7 +291,7 @@ export const applyMethodOf = (submission: Submission): ApplyMethod =>
  * from the position, so it can never be the thing standing in the way.
  */
 export const isSendable = (submission: Submission): boolean => {
-  if (!submission.cv) return false;
+  if (!submission.cv || submission.cv.reviewState !== 'approved') return false;
 
   return applyMethodOf(submission) === 'email'
     ? submission.apply.body.trim() !== ''
@@ -202,6 +330,8 @@ export const toOfferSnapshot = (record: JobRecord): OfferSnapshot => ({
   team: record.team,
   how_to_apply: record.how_to_apply,
   required_skills: record.required_skills,
+  requirements: record.requirements,
   source_url: record.source_url,
-  locale: record.locale
+  locale: record.locale,
+  offer_text: record.offer_text ?? ''
 });

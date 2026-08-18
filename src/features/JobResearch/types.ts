@@ -34,6 +34,43 @@ export type ApplicationStatus = (typeof applicationStatuses)[number];
  */
 export const NOT_STATED = 'Not stated';
 
+export const offerRequirementPriorities = [
+  'required',
+  'preferred',
+  'unknown'
+] as const;
+export type OfferRequirementPriority =
+  (typeof offerRequirementPriorities)[number];
+
+export const offerRequirementCategories = [
+  'skill',
+  'responsibility',
+  'experience',
+  'education',
+  'language',
+  'certification',
+  'location',
+  'work-authorization',
+  'other'
+] as const;
+export type OfferRequirementCategory =
+  (typeof offerRequirementCategories)[number];
+
+/**
+ * A cited request made by the vacancy, kept in its own wording.
+ *
+ * The id is local to the offer snapshot. It is intentionally not a global
+ * identifier: an approved application embeds the requirements it was checked
+ * against, so it remains reproducible after the research row changes.
+ */
+export type OfferRequirement = {
+  id: string;
+  exactText: string;
+  sourceQuote: string;
+  category: OfferRequirementCategory;
+  priority: OfferRequirementPriority;
+};
+
 /** The part the model produces. Kept separate so it can be re-run in place. */
 export type OfferAnalysis = {
   company: string;
@@ -60,6 +97,8 @@ export type OfferAnalysis = {
   how_to_apply: string;
   /** Everything the offer asks for, in the offer's own words. */
   required_skills: string[];
+  /** Cited, classified requirements used by evidence-based tailoring. */
+  requirements: OfferRequirement[];
 };
 
 /**
@@ -116,9 +155,9 @@ export type JobRecord = OfferAnalysis & {
   source_url: string;
   source_mode: SourceMode;
   /**
-   * The offer text, kept only on imported rows. It is what lets "Analyse" fill
-   * the inferred fields without going back to the board — which matters when
-   * the posting has since expired or the board has started refusing us.
+   * Normalized text that was actually analysed, retained for both imported and
+   * URL-based research. It supports cited requirements and reproducible
+   * tailoring after the posting expires or the board starts refusing us.
    */
   offer_text?: string;
   board_facts?: BoardFacts;

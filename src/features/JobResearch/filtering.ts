@@ -169,7 +169,11 @@ const haystack = (record: JobRecord): string =>
     record.location,
     record.role_profile,
     record.notes,
-    ...(record.required_skills ?? [])
+    ...(record.required_skills ?? []),
+    ...(record.requirements ?? []).flatMap((requirement) => [
+      requirement.exactText,
+      requirement.sourceQuote
+    ])
   ]
     .filter(Boolean)
     .join(' ')

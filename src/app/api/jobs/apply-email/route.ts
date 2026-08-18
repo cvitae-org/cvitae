@@ -22,6 +22,24 @@ const loadAiModule = async (): Promise<AiModule> => {
 
 export const maxDuration = 60;
 
+const redactContacts = (value: string): string =>
+  value
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[contact removed]')
+    .replace(/(?:\+?\d[\d ().-]{7,}\d)/g, '[contact removed]');
+
+/** Removes transport/source metadata before any candidate data reaches a model. */
+export const sanitizeCvForExternalModel = (value: unknown): unknown => {
+  if (typeof value !== 'object' || value === null) return null;
+  return JSON.parse(
+    JSON.stringify(value, (key, item) => {
+      if (key === 'sources' || key === 'email' || key === 'phone' || key === 'links') {
+        return undefined;
+      }
+      return typeof item === 'string' ? redactContacts(item) : item;
+    })
+  );
+};
+
 const responseSchema = z.object({
   subject: z.string().describe(
     'The email subject line. Names the position, and the candidate. Plain text, no quotes, under 80 characters.'
@@ -60,7 +78,7 @@ export async function POST(req: Request) {
     // Sent by the caller rather than read from `messages/*.json`. See the note
     // on the same change in `api/cv/generate`: the CV moved into the document
     // store, and the translations file now holds only headings and a footer.
-    const cvData = cv;
+    const cvData = sanitizeCvForExternalModel(cv);
 
     if (!cvData || typeof cvData !== 'object') {
       return Response.json(
@@ -86,7 +104,7 @@ export async function POST(req: Request) {
 
 ${languageInstruction}
 
-You have the candidate's full CV data:
+You have the candidate's CV facts (contact and source metadata removed):
 ${JSON.stringify(cvData, null, 2)}
 
 The CV is attached to this email, so the email does not repeat it. Its job is to say who is writing, which role they are applying for, and the two or three things about them that matter most for this specific posting.
@@ -111,16 +129,16 @@ HOW TO WRITE IT:
 - Do not promise availability, salary expectations, or notice periods unless the CV data states them.`,
       prompt: `Write the application email for this offer.
 
-COMPANY: ${typeof company === 'string' ? company : 'Not stated'}
-POSITION: ${typeof position === 'string' ? position : 'Not stated'}
+COMPANY: ${typeof company === 'string' ? redactContacts(company) : 'Not stated'}
+POSITION: ${typeof position === 'string' ? redactContacts(position) : 'Not stated'}
 
 THE OFFER:
-${offer}
+${redactContacts(offer)}
 
 ${
   typeof cvSummary === 'string' && cvSummary.trim()
     ? `THE SUMMARY ON THE ATTACHED CV (already tailored to this offer — the email should be consistent with it, not a copy of it):
-${typeof cvTitle === 'string' && cvTitle.trim() ? `${cvTitle}\n` : ''}${cvSummary}`
+${typeof cvTitle === 'string' && cvTitle.trim() ? `${redactContacts(cvTitle)}\n` : ''}${redactContacts(cvSummary)}`
     : ''
 }`
     });

@@ -19,12 +19,12 @@ import { defaultLocale, locales } from '@/libs/i18n/config';
  * `{ en, pl }` on every string would put that structure in front of every
  * consumer for no gain.
  *
- * `skills` is the one field that has since diverged from the runtime, and the
- * divergence is read-only: the runtime extracts three fixed lists, this holds
- * named groups, and `parseDocument` accepts either — so an extraction still
- * lands here untranslated. Nothing sends a document the other way today. When
- * something does, those three lists are what it has to fold back into, and the
- * labels below are the names it will find them under.
+ * `skills` is the one field that diverges from the runtime's stored CV: its
+ * extractor produces three fixed lists, while this document holds named groups.
+ * `parseDocument` accepts either shape. The `translate_cv` boundary is the
+ * deliberate exception on the way out: its translatable-browser schema accepts
+ * these named groups directly and returns their labels translated in place, so
+ * no lossy folding into the three extraction lists occurs.
  */
 
 export type CvLink = { name: string; url: string };

@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "@/libs/i18n/routing";
 
 /**
  * Button component that switches between PL and EN versions of the CV.
- * Shows the current locale and allows switching to the other one.
+ * Shows the target locale so the label reads as "switch to EN/PL".
  */
 export function CVLanguageSwitcher() {
   const locale = useLocale();
@@ -18,7 +18,6 @@ export function CVLanguageSwitcher() {
     router.replace(pathname, { locale: newLocale });
   };
 
-  const currentLang = locale === "pl" ? "PL" : "EN";
   const otherLang = locale === "pl" ? "EN" : "PL";
 
   return (
@@ -31,7 +30,7 @@ export function CVLanguageSwitcher() {
         bg-[#65B7FF] text-gray-100 hover:bg-[#529ED5] active:bg-[#407BA9]
       "
     >
-      <span className="text-xs font-semibold">{currentLang}</span>
+      <span className="text-xs font-semibold">{otherLang}</span>
     </button>
   );
 }

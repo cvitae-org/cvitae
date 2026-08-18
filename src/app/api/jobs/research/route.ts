@@ -4,6 +4,10 @@ import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import type { BoardOffer } from '@/libs/jobs/scraperClient';
 import { analyzeOffer, OfferAnalysisError } from '@/libs/jobs/analyzeOffer';
 import { runCapability, toRuntimeModel } from '@/libs/runtime/client';
+import {
+  normalizeOfferText,
+  withNormalizedRequirements
+} from '@/features/JobResearch/requirements';
 
 type AiModule = typeof import('ai');
 
@@ -126,6 +130,28 @@ export async function POST(req: Request) {
     const stated: StatedFacts | undefined =
       fromScraper && boardFacts ? (boardFacts as StatedFacts) : undefined;
 
+    // Keep the posting that was actually analysed. Tailoring needs cited
+    // wording later, and a URL is not a durable copy: vacancies expire and
+    // boards change or block server fetches. Acquiring here also makes the
+    // in-process and delegated paths analyse the same normalized text.
+    if (!text && sourceUrl) {
+      const outcome = await resolveOffer(sourceUrl);
+
+      if (outcome.status !== 'ok') {
+        return Response.json(
+          { error: outcome.detail, reason: outcome.status, needsManualText: true },
+          { status: 422 }
+        );
+      }
+
+      text = outcome.text;
+      sourceUrl = outcome.finalUrl;
+      sourceMode = 'url';
+      board = outcome.board;
+    }
+
+    text = normalizeOfferText(text);
+
     const override = ai ?? {};
 
     // Research is pure extraction — copying values that are already in the
@@ -144,16 +170,15 @@ export async function POST(req: Request) {
     let analysedBy = '';
     let viaRuntime = false;
 
-    // The URL goes to the runtime rather than being resolved here: it owns
-    // fetchOffer, the scraper client and the board-fact overlay now, and
-    // resolving locally first would mean the text was read by whichever copy
-    // happened to run — the thing this migration exists to stop.
+    // URL acquisition above freezes one normalized posting for either
+    // implementation. The runtime therefore receives the same retained text
+    // as the in-process fallback rather than fetching a second, potentially
+    // changed copy of the vacancy.
     const delegated = await runCapability<Record<string, unknown>>(
       'analyze_offer',
       {
-        offerText: text || undefined,
-        url: text ? undefined : sourceUrl,
-        boardFacts: stated,
+        offerText: text,
+        boardFacts: board ?? stated,
         locale
       },
       {
@@ -216,25 +241,6 @@ export async function POST(req: Request) {
       console.info(
         `cvitae-agent-runtime unavailable (${delegated.detail}); analysing in-process.`
       );
-
-      // Acquisition too, now that the runtime owns it. Only this path still
-      // reads a board from inside cvitae, and only because there is no runtime
-      // to ask — the copies here go when the fallback does.
-      if (!text && sourceUrl) {
-        const outcome = await resolveOffer(sourceUrl);
-
-        if (outcome.status !== 'ok') {
-          return Response.json(
-            { error: outcome.detail, reason: outcome.status, needsManualText: true },
-            { status: 422 }
-          );
-        }
-
-        text = outcome.text;
-        sourceUrl = outcome.finalUrl;
-        sourceMode = 'url';
-        board = outcome.board;
-      }
 
       const [aiModule, { model, providerId }] = await Promise.all([
         loadAiModule(),
@@ -305,10 +311,11 @@ export async function POST(req: Request) {
     }
 
     return Response.json({
-      ...analysis,
+      ...withNormalizedRequirements(analysis, text),
       source_url: sourceUrl,
       source_mode: sourceMode,
       source_note: sourceNote,
+      offer_text: text,
       checked_at: new Date().toISOString(),
       locale
     });

@@ -49,6 +49,7 @@ type ApiResponse = OfferAnalysis & {
   source_note: string;
   checked_at: string;
   locale: string;
+  offer_text: string;
 };
 
 export const useJobResearch = () => {
@@ -166,7 +167,7 @@ export const useJobResearch = () => {
           notes: existing?.notes ?? '',
           // Nor the stored scrape: the route does not echo these back, and
           // dropping them would leave the row unable to be analysed again.
-          offer_text: existing?.offer_text,
+          offer_text: analysis.offer_text || existing?.offer_text,
           board_facts: existing?.board_facts
         };
 

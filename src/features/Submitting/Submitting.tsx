@@ -3,12 +3,15 @@
 import { Sheet } from '@/components/Sheet';
 import { SheetNavigation } from '@/components/SheetNavigation';
 import { CVDownloadButton } from '@/features/CV/components/CVDownloadButton';
+import { AtsDownloadButton } from '@/features/CV/components/AtsDownloadButton';
+import { useCvDocument } from '@/features/CV/hooks/useCvDocument';
 import { useSubmitting } from './hooks/useSubmitting';
 import { useOfferAnalysis } from './hooks/useOfferAnalysis';
 import { SubmissionQueue } from './components/SubmissionQueue';
 import { SubmissionDetail } from './components/SubmissionDetail';
 import { cvFilename, TailoredCVPreview } from './components/TailoredCVPreview';
 import { stageOf } from './types';
+import { variantStalenessReasons } from './evidence';
 
 /**
  * The submitting page: offers picked out of research, taken through to sent.
@@ -40,6 +43,23 @@ export function Submitting() {
     analysisError,
     clearAnalysisError
   } = useOfferAnalysis();
+  const { document: liveCv } = useCvDocument(active?.language);
+
+  const pdfBlockedReasons = active?.cv
+    ? [
+        ...(active.cv.reviewState === 'approved'
+          ? []
+          : ['the evidence variant is not approved']),
+        ...(active.sentAt
+          ? []
+          : variantStalenessReasons(
+              active.cv,
+              liveCv,
+              active.offer,
+              active.language
+            ))
+      ]
+    : [];
 
   const counts = submissions.reduce(
     (totals, submission) => {
@@ -128,9 +148,24 @@ export function Submitting() {
             there is a CV — same position as on the CV page. */}
         <div className="sticky top-8 w-9 flex-shrink-0 print:hidden">
           {active?.cv && (
-            <CVDownloadButton
-              filename={cvFilename(active.offer, active.language)}
-            />
+            <div className="flex flex-col gap-2">
+              <AtsDownloadButton
+                document={active.cv.output}
+                locale={active.language}
+                targetRole={active.cv.output.skills.role}
+                company={active.offer.company}
+                blockedReasons={pdfBlockedReasons}
+              />
+              <CVDownloadButton
+                filename={cvFilename(
+                  active.offer,
+                  active.language,
+                  active.cv.output.personal.name
+                )}
+                previewId={`submission-${active.cv.id}`}
+                blockedReasons={pdfBlockedReasons}
+              />
+            </div>
           )}
         </div>
       </div>

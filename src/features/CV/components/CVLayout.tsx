@@ -91,6 +91,7 @@ function CVLoadingSkeleton() {
 function CVLayoutInternal({
   children,
   onMeasurementComplete,
+  previewId = 'cv-preview',
 }: CVLayoutProps) {
   const measurementContext = useMeasurementContext();
   const [pageBreaks, setPageBreaks] = useState<PageBreak[]>([]);
@@ -173,11 +174,13 @@ function CVLayoutInternal({
         </div>
       </div>
 
-      {isLoading ? (
-        <CVLoadingSkeleton />
-      ) : (
-        <PaginatedRenderer pageBreaks={pageBreaks} items={itemsMap} />
-      )}
+      <div data-cv-preview-root={previewId}>
+        {isLoading ? (
+          <CVLoadingSkeleton />
+        ) : (
+          <PaginatedRenderer pageBreaks={pageBreaks} items={itemsMap} />
+        )}
+      </div>
     </>
   );
 }
@@ -198,4 +201,3 @@ export function CVLayout(props: CVLayoutProps) {
     </MeasurementProvider>
   );
 }
-

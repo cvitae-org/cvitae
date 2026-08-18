@@ -4,7 +4,6 @@ import React, { createContext, useContext } from "react";
 
 interface OrderContextValue {
   getNextOrder: () => number;
-  reset: () => void;
 }
 
 const OrderContext = createContext<OrderContextValue | null>(null);
@@ -35,13 +34,9 @@ export function OrderProvider({ children }: OrderProviderProps) {
     getNextOrder: () => {
       return counter++;
     },
-    reset: () => {
-      counter = 0;
-    },
   };
 
   return (
     <OrderContext.Provider value={value}>{children}</OrderContext.Provider>
   );
 }
-

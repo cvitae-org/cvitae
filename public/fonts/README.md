@@ -13,7 +13,7 @@ Keep the exact filenames above so the @font-face rules in `src/app/globals.css`
 resolve correctly. These are licensed and are deliberately not redistributed
 here.
 
-## DejaVuSans.ttf — the PDF text layer, committed
+## DejaVuSans.ttf — the designed PDF text layer, committed
 
 Used only by `src/features/CV/utils/pdfTextLayer.ts`, and never drawn. The PDF
 export rasterises each page, which used to leave the file with no text in it at
@@ -34,3 +34,10 @@ export, and under the Bitstream Vera / DejaVu licence — see
 Fetched lazily by the browser, so a visit that never exports never downloads it.
 jsPDF subsets what it embeds: the 739KB file adds roughly 240KB to an exported
 CV, not 739.
+
+## DejaVu Sans faces — the native ATS PDF
+
+The primary exporter loads regular, bold, italic, and bold-italic WOFF faces from the pinned
+`@fontsource/dejavu-sans` dependency through fixed local asset routes. React-PDF subsets and embeds
+those faces in the native Unicode PDF. They are fetched only when export starts; the PDF generator
+itself is dynamically imported at the same point.

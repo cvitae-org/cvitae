@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { MeasuredItem } from "../layout/MeasuredItem";
 import { MaskedPortrait } from "../common/MaskedPortrait";
 import { MaskedBackground } from "../common/MaskedBackground";
-import { useCVCustomizationOptional } from "../../contexts/CVCustomizationContext";
 import { EditableText } from "../editing/EditableText";
 import { EmptySection } from "../editing/EmptySection";
 import { EntryControls } from "../editing/EntryControls";
@@ -73,16 +72,8 @@ const linkFields = [
 
 export function CVHeader() {
   const t = useTranslations("cv");
-  const customization = useCVCustomizationOptional();
   const { document, locale } = useCvDocument();
   const { portrait } = usePortrait();
-
-  // A tailored CV overrides these per application. When one is active the field
-  // is shown but not editable: what is on screen is the generated value, and
-  // typing into it would silently edit the stored CV underneath instead — a
-  // change the user could not see they had made.
-  const titleOverride = customization?.customTexts.title;
-  const summaryOverride = customization?.customTexts.summary;
 
   return (
     <MeasuredItem id="cv-header" section="header" order={sectionOrder("header")}>
@@ -140,20 +131,14 @@ export function CVHeader() {
                 ariaLabel="Full name"
                 className="text-2xl sm:text-3xl md:text-3xl font-bold text-gray-900 font-cv leading-tight"
               />
-              {titleOverride ? (
-                <h2 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 tracking-[0.16em] font-cv">
-                  {titleOverride}
-                </h2>
-              ) : (
-                <EditableText
-                  as="h2"
-                  value={document.skills.role}
-                  onCommit={(value) => setSkills(locale, { role: value })}
-                  placeholder="Your role"
-                  ariaLabel="Professional title"
-                  className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 tracking-[0.16em] font-cv"
-                />
-              )}
+              <EditableText
+                as="h2"
+                value={document.skills.role}
+                onCommit={(value) => setSkills(locale, { role: value })}
+                placeholder="Your role"
+                ariaLabel="Professional title"
+                className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 tracking-[0.16em] font-cv"
+              />
             </div>
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-3 gap-y-1 text-xs sm:text-sm text-gray-800 font-cv">
@@ -175,24 +160,30 @@ export function CVHeader() {
                 onCommit={(value) => setPersonal(locale, { phone: value })}
                 placeholder="Phone number"
                 ariaLabel="Phone number"
+                pdfLink={
+                  document.personal.phone
+                    ? `tel:${document.personal.phone.replace(/[^+\d]/g, '')}`
+                    : undefined
+                }
+              />
+              <span className="hidden sm:inline text-gray-400">/</span>
+              <EditableText
+                value={document.personal.location}
+                onCommit={(value) => setPersonal(locale, { location: value })}
+                placeholder="City, Country"
+                ariaLabel="Location"
               />
             </div>
 
-            {summaryOverride ? (
-              <p className="text-[11px] pr-4 sm:text-xs md:text-sm text-gray-700 italic leading-relaxed font-cv max-w-xl mx-auto md:mx-0">
-                {summaryOverride}
-              </p>
-            ) : (
-              <EditableText
-                as="p"
-                multiline
-                value={document.role_description}
-                onCommit={(value) => setRoleDescription(locale, value)}
-                placeholder="A short professional summary — what you do, and what you are good at."
-                ariaLabel="Professional summary"
-                className="text-[11px] pr-4 sm:text-xs md:text-sm text-gray-700 italic leading-relaxed font-cv max-w-xl mx-auto md:mx-0"
-              />
-            )}
+            <EditableText
+              as="p"
+              multiline
+              value={document.role_description}
+              onCommit={(value) => setRoleDescription(locale, value)}
+              placeholder="A short professional summary — what you do, and what you are good at."
+              ariaLabel="Professional summary"
+              className="text-[11px] pr-4 sm:text-xs md:text-sm text-gray-700 italic leading-relaxed font-cv max-w-xl mx-auto md:mx-0"
+            />
 
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-[10px] sm:text-[11px] text-gray-600 font-cv">
               {linkFields.map((field, index) => (

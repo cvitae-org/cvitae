@@ -12,18 +12,18 @@
       "linkedin": "linkedin.com/in/dominik-ben/"
     }
   },
-  "role_description": "Ponad 8 lat doświadczenia w tworzeniu skalowalnych aplikacji internetowych. Specjalizuję się w React i Next.js, z silnym naciskiem na architekture aplikacji i i UX. Pasjonat nowych technologii, w tym Web3 i blockchain.",
+  "role_description": "Ponad 8 lat doświadczenia w tworzeniu skalowalnych aplikacji internetowych. Specjalizuję się w React i Next.js, z silnym naciskiem na architekturę aplikacji i UX. Pasjonat nowych technologii, w tym Web3 i blockchain.",
   "skills": {
     "role": "FRONTEND DEVELOPER",
     "groups": [
       {
         "label": "Języki",
         "items": [
-          "Javascript",
+          "JavaScript",
           "HTML",
           "CSS",
           "JSX",
-          "Typescript",
+          "TypeScript",
           "Rust"
         ]
       },
@@ -42,10 +42,10 @@
         "label": "Biblioteki i narzędzia",
         "items": [
           "Redux",
-          "jotai",
+          "Jotai",
           "NX",
           "Storybook",
-          "jfrog",
+          "JFrog",
           "React Query",
           "React Hook Form",
           "React Router",
@@ -72,7 +72,7 @@
         "label": "Inne technologie",
         "items": [
           "WAGMI",
-          "ethersJS",
+          "ethers.js",
           "ICP Blockchain SDK",
           "Docker",
           "Vercel",
@@ -92,7 +92,7 @@
       "highlights": [
         "Kierowałem architekturą frontendową platformy handlowej DeFi opartej na Solanie, dostarczając aktualizacje WebSocket w czasie poniżej sekundy dla śledzenia portfeli w czasie rzeczywistym i wykonywania transakcji.",
         "Zaprojektowałem dashboard analityczny portfolio z live PnL, śledzeniem pozycji i metrykami wydajności tokenów, przetwarzając tysiące zdarzeń on-chain.",
-        "Zaprojektowałem modułową architekturę komponentów używając Zustand, React Query i TypeScript, redukując złożoność kodu",
+        "Zaprojektowałem modułową architekturę komponentów używając Zustand, React Query i TypeScript, redukując złożoność kodu.",
         "Dostarczyłem gotowy do produkcji interfejs handlowy z integracją TradingView, przeciąganymi układami i responsywnymi tabelami zoptymalizowanymi dla strumieni danych wysokiej częstotliwości.",
         "Ustanowiłem wzorce domain driven i separation of concerns jako standardy frontendowe dla całego zespołu."
       ],
@@ -118,7 +118,7 @@
       "started": "Czerwiec 2019",
       "finished": "Czerwiec 2023",
       "highlights": [
-        "Zrefaktoryzowałem aplikację z klasowego React'a na hooki, znacznie poprawiając wydajność aplikacji oraz czytelność kodu.",
+        "Zrefaktoryzowałem aplikację z komponentów klasowych React do hooków, znacznie poprawiając wydajność aplikacji oraz czytelność kodu.",
         "Tworzyłem atomy, moduły, oraz całe layouty wraz z zaawansowaną implementacją architektury aplikacji frontendowych dedykowanych na rynki zagraniczne.",
         "Współpracowałem w międzynarodowym zespole w metodyce SCRUM.",
         "Pełniłem rolę kluczowego członka zespołu frontendowego, uczestnicząc w tworzeniu nowego sklepu internetowego od podstaw."
@@ -186,7 +186,7 @@
   "certificates": [
     {
       "name": "Zbudowanie podstawowego projektu - ICP Chat na sieci Internet Computer",
-      "issuer": "Projekt z użyciem języka Rust, Vue oraz Typescript",
+      "issuer": "Projekt z użyciem języka Rust, Vue oraz TypeScript",
       "started": "29-31.07.2024",
       "finished": null
     }

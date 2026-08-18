@@ -14,8 +14,10 @@ import {
   setSentAt
 } from './store';
 import type { Submission } from './types';
-import { toOfferSnapshot } from './types';
+import { isSendable, toOfferSnapshot } from './types';
 import { findApplyEmail } from './offerText';
+import { getCvState } from '@/features/CV/store';
+import { variantStalenessReasons } from './evidence';
 
 /**
  * The seam between research and submitting.
@@ -78,12 +80,27 @@ export const queueOffer = (record: JobRecord, language: Locale): Submission => {
  * The status is advanced rather than set: a row the user has already moved to
  * "interview" stays there.
  */
-export const sendSubmission = (id: string) => {
+export const sendSubmission = (id: string): boolean => {
   const submission = findSubmission(id);
-  if (!submission || submission.sentAt) return;
+  if (!submission || submission.sentAt || !submission.cv || !isSendable(submission)) {
+    return false;
+  }
+
+  const liveCv = getCvState()[submission.language];
+  if (
+    variantStalenessReasons(
+      submission.cv,
+      liveCv,
+      submission.offer,
+      submission.language
+    ).length > 0
+  ) {
+    return false;
+  }
 
   setSentAt(id, new Date().toISOString());
   advanceStatus(submission.recordId, 'applied');
+  return true;
 };
 
 /**

@@ -11,16 +11,21 @@ import {
   TEXT_LAYER_FONT,
   type TextLine,
 } from "../utils/pdfTextLayer";
+import { preflightPdf } from '../pdf/preflight';
+import { saveBlob } from '../pdf/atsPdf';
 
 interface UsePDFGeneratorOptions {
   filename?: string;
   quality?: number; // 1-3, higher = better quality but larger file
+  /** The exact designed preview to capture; prevents decoy roots joining a file. */
+  previewId: string;
 }
 
 interface UsePDFGeneratorReturn {
   generatePDF: () => Promise<void>;
   isGenerating: boolean;
   error: string | null;
+  warnings: string[];
   progress: number; // 0-100
 }
 
@@ -83,6 +88,25 @@ const settle = () =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, SETTLE_MS);
   });
+
+const waitForPreviewAssets = async (root: HTMLElement) => {
+  if (document.fonts?.ready) await document.fonts.ready;
+  await Promise.all(
+    Array.from(root.querySelectorAll('img')).map(async (image) => {
+      if (image.complete && image.naturalWidth > 0) return;
+      await image.decode();
+    })
+  );
+  const invalidCanvas = Array.from(root.querySelectorAll('canvas')).find(
+    (canvas) => canvas.width === 0 || canvas.height === 0
+  );
+  if (invalidCanvas) throw new Error('A preview canvas is not ready.');
+};
+
+const pageSignature = (root: HTMLElement): string =>
+  Array.from(root.querySelectorAll<HTMLElement>('[data-page]'))
+    .map((page) => `${page.dataset.page}:${page.innerText.length}`)
+    .join('|');
 
 /** A link annotation, in the millimetre space of one PDF page. */
 type LinkAnnotation = {
@@ -175,20 +199,23 @@ const prepareCloneForExport = (page: HTMLElement): PageOverlay => {
  * <button onClick={generatePDF} disabled={isGenerating}>Download PDF</button>
  */
 export function usePDFGenerator(
-  options: UsePDFGeneratorOptions = {}
+  options: UsePDFGeneratorOptions
 ): UsePDFGeneratorReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
 
   const {
-    filename = "Dominik_Ben_CV.pdf",
+    filename = "CV_Designed.pdf",
     quality = 2, // 2x scale for good quality
+    previewId,
   } = options;
 
   const generatePDF = useCallback(async () => {
     setIsGenerating(true);
     setError(null);
+    setWarnings([]);
     setProgress(0);
 
     try {
@@ -200,15 +227,23 @@ export function usePDFGenerator(
       }
       await settle();
 
-      /**
-       * The paginated tree only. The measurement tree renders the same sections
-       * from the same elements and is always mounted, so every selector below
-       * would otherwise find each node twice — once on the page and once in a
-       * hidden copy that is nowhere near an A4 page.
-       */
+      const root = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-cv-preview-root]')
+      ).find((element) => element.dataset.cvPreviewRoot === previewId);
+      if (!root) throw new Error(`Designed preview "${previewId}" was not found.`);
+      await waitForPreviewAssets(root);
+      const firstSignature = pageSignature(root);
+      await settle();
+      if (!firstSignature || firstSignature !== pageSignature(root)) {
+        throw new Error('Pagination is still changing; wait a moment and retry.');
+      }
+
       const pages = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-page]")
+        root.querySelectorAll<HTMLElement>("[data-page]")
       );
+      const logicalHeadings = Array.from(root.querySelectorAll('h2'))
+        .map((heading) => heading.textContent?.trim() ?? '')
+        .filter(Boolean);
 
       if (pages.length === 0) {
         throw new Error("No pages found. Make sure CV is in paginated mode.");
@@ -227,6 +262,12 @@ export function usePDFGenerator(
       // false means the font could not be loaded and the pages go out as images
       // alone, exactly as they did before this existed.
       const hasFont = await registerTextLayerFont(pdf);
+      if (!hasFont) {
+        throw new Error('The searchable text-layer font could not be loaded.');
+      }
+
+      const allLines: TextLine[] = [];
+      const allLinks: string[] = [];
 
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
@@ -265,16 +306,40 @@ export function usePDFGenerator(
         if (hasFont) {
           addTextLayer(pdf, overlay.lines, pxToMm, TEXT_LAYER_FONT);
         }
+        allLines.push(...overlay.lines);
 
         overlay.links.forEach(({ url, x, y, width, height }) => {
           pdf.link(x, y, width, height, { url });
+          allLinks.push(url);
         });
       }
 
       setProgress(95);
 
-      // Download PDF
-      pdf.save(filename);
+      const blob = pdf.output('blob');
+      const result = await preflightPdf(blob, {
+        expectedText: allLines.map((line) => line.text).join('\n'),
+        expectedLinks: allLinks,
+        logicalHeadings,
+        ignoredRecoveryText: allLines
+          .filter((line) => line.recoveryOptional)
+          .map((line) => line.text),
+        outputLabel: 'Designed PDF'
+      });
+      if (!result.ok) {
+        throw new Error(
+          `Designed PDF failed preflight: ${result.issues
+            .filter((issue) => issue.severity === 'block')
+            .map((issue) => issue.message)
+            .join(' ')}`
+        );
+      }
+      setWarnings(
+        result.issues
+          .filter((issue) => issue.severity === 'warning')
+          .map((issue) => issue.message)
+      );
+      saveBlob(blob, filename);
 
       setProgress(100);
 
@@ -290,12 +355,13 @@ export function usePDFGenerator(
     } finally {
       setIsGenerating(false);
     }
-  }, [filename, quality]);
+  }, [filename, previewId, quality]);
 
   return {
     generatePDF,
     isGenerating,
     error,
+    warnings,
     progress,
   };
 }

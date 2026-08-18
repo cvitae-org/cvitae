@@ -449,6 +449,34 @@ function RecordDetail({ record }: { record: JobRecord }) {
           )}
         </div>
 
+        {record.requirements.length > 0 && (
+          <div className="mt-4 border-t border-gray-200 pt-3">
+            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+              Cited requirement catalog ({record.requirements.length})
+            </h4>
+            <ul className="mt-2 space-y-2">
+              {record.requirements.map((requirement) => (
+                <li key={requirement.id} className="rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium text-gray-800">
+                      {requirement.exactText}
+                    </span>
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
+                      {requirement.priority}
+                    </span>
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
+                      {requirement.category}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] italic leading-relaxed text-gray-500">
+                    “{requirement.sourceQuote}”
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-5 space-y-1 border-t border-gray-200 pt-3 text-xs text-gray-500">
           {record.source_url && (
             <a

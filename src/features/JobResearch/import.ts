@@ -1,6 +1,7 @@
 import type { JobRecord, WorkMode } from './types';
 import { NOT_STATED, workModes } from './types';
 import { createId, normalizeUrl } from './storage';
+import { normalizeOfferText, normalizeRequirements } from './requirements';
 
 /**
  * Reads cvitae-scrapper's JSONL output into table rows.
@@ -102,6 +103,10 @@ const toRecord = (
   salary: text(line.salary),
   seniority: text(line.seniority),
   required_skills: list(line.required_skills),
+  requirements: normalizeRequirements(undefined, {
+    required_skills: list(line.required_skills),
+    responsibilities: []
+  }),
 
   // Passed through as the board worded it. Boards emit schema.org's
   // employmentType here (CONTRACTOR, FULL_TIME) rather than the Polish form of
@@ -126,7 +131,10 @@ const toRecord = (
 
   // Kept so the inferred fields can be filled later without re-fetching, and
   // so re-analysis cannot overwrite the board's own figures with the model's.
-  offer_text: typeof line.text === 'string' ? line.text : undefined,
+  offer_text:
+    typeof line.text === 'string'
+      ? normalizeOfferText(line.text) || undefined
+      : undefined,
   board_facts: {
     company: line.company,
     title: line.title,

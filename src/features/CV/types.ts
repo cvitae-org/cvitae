@@ -69,4 +69,6 @@ export interface A4PageProps {
 export interface CVLayoutProps {
   children: React.ReactNode;
   onMeasurementComplete?: (pageBreaks: PageBreak[]) => void;
+  /** Explicit boundary used by the secondary designed-PDF capture. */
+  previewId?: string;
 }

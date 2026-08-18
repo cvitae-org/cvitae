@@ -5,7 +5,7 @@ import type { Locale } from '@/libs/i18n/config';
 import enMessages from '@/../messages/en.json';
 import plMessages from '@/../messages/pl.json';
 import { CVLayout } from '@/features/CV/components/CVLayout';
-import { CVCustomizationProvider } from '@/features/CV/contexts/CVCustomizationContext';
+import { CvDocumentProvider } from '@/features/CV/contexts/CvDocumentContext';
 import {
   CVHeader,
   CVExperience,
@@ -14,7 +14,7 @@ import {
   CVLanguages,
   CVFooter
 } from '@/features/CV/components/sections';
-import type { OfferSnapshot, TailoredCV } from '../types';
+import type { EvidenceCvVariant, OfferSnapshot } from '../types';
 
 /**
  * The real CV, with this offer's title and summary in it.
@@ -30,7 +30,7 @@ import type { OfferSnapshot, TailoredCV } from '../types';
  */
 
 type TailoredCVPreviewProps = {
-  cv: TailoredCV;
+  cv: EvidenceCvVariant;
   language: Locale;
 };
 
@@ -53,6 +53,7 @@ const toSlug = (value: string): string =>
   value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[łŁ]/g, (letter) => (letter === 'Ł' ? 'L' : 'l'))
     .replace(/[^a-zA-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 
@@ -61,11 +62,17 @@ const toSlug = (value: string): string =>
  * downloads apart once they are both sitting in ~/Downloads. The language is
  * the application's, which is the language of the document in the file.
  */
-export const cvFilename = (offer: OfferSnapshot, language: string): string => {
+export const cvFilename = (
+  offer: OfferSnapshot,
+  language: string,
+  documentName = 'CV'
+): string => {
+  const name = toSlug(documentName) || 'CV';
   const company = toSlug(offer.company);
-  return `Dominik_Ben_CV_${language.toUpperCase()}${
+  const role = toSlug(offer.position);
+  return `${name}_${role || 'Role'}_${language.toUpperCase()}${
     company ? `_${company}` : ''
-  }.pdf`;
+  }_Designed.pdf`;
 };
 
 export function TailoredCVPreview({ cv, language }: TailoredCVPreviewProps) {
@@ -76,22 +83,22 @@ export function TailoredCVPreview({ cv, language }: TailoredCVPreviewProps) {
   // every measured height changes with the text.
   return (
     <NextIntlClientProvider
-      key={`${language}-${cv.generatedAt}-${cv.title}`}
+      key={`${language}-${cv.meta.updatedAt}-${cv.id}`}
       locale={language}
       messages={messagesFor[language]}
     >
-      <CVCustomizationProvider
-        initialTexts={{ title: cv.title, summary: cv.summary }}
-      >
-        <CVLayout>
-          <CVHeader />
-          <CVExperience />
-          <CVEducation />
-          <CVCertificates />
-          <CVLanguages />
-          <CVFooter />
-        </CVLayout>
-      </CVCustomizationProvider>
+      <CvDocumentProvider document={cv.output} locale={language}>
+        <div inert aria-label="Frozen evidence CV preview">
+          <CVLayout previewId={`submission-${cv.id}`}>
+            <CVHeader />
+            <CVExperience />
+            <CVEducation />
+            <CVCertificates />
+            <CVLanguages />
+            <CVFooter />
+          </CVLayout>
+        </div>
+      </CvDocumentProvider>
     </NextIntlClientProvider>
   );
 }

@@ -15,9 +15,9 @@ export type AiSettings = {
   /** Drives CV customisation. Empty means the provider's default model. */
   modelId: string;
   /**
-   * Drives offer research, whose five agents only copy values already present
-   * in the offer and so run well on a smaller, much faster model. Empty means
-   * reuse `modelId`.
+   * Drives structured extraction and faithful translation tasks, which only
+   * copy or translate values already present and therefore run well on a
+   * smaller, much faster model. Empty means reuse `modelId`.
    */
   extractionModelId: string;
   /** Only meaningful for the local provider. */

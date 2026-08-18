@@ -5,6 +5,7 @@ import { useLocale } from 'next-intl';
 import type { Locale } from '@/libs/i18n/config';
 import { emptyDocument, isBlank, type CvDocument } from '../document';
 import { getServerSnapshot, getSnapshot, subscribe } from '../store';
+import { useCvDocumentOverride } from '../contexts/CvDocumentContext';
 
 /**
  * The CV for the language currently being viewed.
@@ -30,6 +31,7 @@ export const useCvDocument = (
 } => {
   const routeLocale = useLocale() as Locale;
   const resolved = locale ?? routeLocale;
+  const override = useCvDocumentOverride();
 
   const { data, hydrated } = useSyncExternalStore(
     subscribe,
@@ -37,7 +39,13 @@ export const useCvDocument = (
     getServerSnapshot
   );
 
-  const document = data[resolved] ?? emptyDocument();
+  const document = override?.document ?? data[resolved] ?? emptyDocument();
+  const documentLocale = override?.locale ?? resolved;
 
-  return { document, locale: resolved, hydrated, blank: isBlank(document) };
+  return {
+    document,
+    locale: documentLocale,
+    hydrated: override ? true : hydrated,
+    blank: isBlank(document)
+  };
 };

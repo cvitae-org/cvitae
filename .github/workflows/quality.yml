@@ -1,0 +1,66 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - run: pnpm build
+
+  pdf-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils qpdf
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - name: Independent PDF checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' pdfs < <(find test-results -name '*.pdf' -print0)
+          test "${#pdfs[@]}" -ge 3
+          for pdf in "${pdfs[@]}"; do
+            qpdf --check "$pdf"
+            pdfinfo "$pdf" | grep -Eq 'Page size:[[:space:]]+595(\.2[0-9]*)? x 841(\.8[0-9]*)? pts \(A4\)'
+            pdftotext -enc UTF-8 -layout "$pdf" "${pdf}.txt"
+            grep -Eq 'Dominik Beń|Ada Żółć' "${pdf}.txt"
+            test "$(wc -w < "${pdf}.txt")" -gt 20
+            node scripts/check-poppler-recovery.mjs "$pdf" "${pdf}.txt"
+            test "$(stat -c%s "$pdf")" -lt 2500000
+            pdffonts "$pdf" | awk 'NR > 2 && $4 == "yes" && $6 == "yes" { found=1 } END { exit found ? 0 : 1 }'
+            if [[ "$pdf" == *cv-pl.pdf ]]; then
+              grep -qi 'DOŚWIADCZENIE ZAWODOWE' "${pdf}.txt"
+              grep -qi 'PODSUMOWANIE ZAWODOWE' "${pdf}.txt"
+              grep -q 'Zaprojektowałem' "${pdf}.txt"
+            fi
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-test-artifacts
+          path: test-results

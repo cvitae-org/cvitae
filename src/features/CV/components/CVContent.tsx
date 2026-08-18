@@ -2,14 +2,19 @@
 
 import React, { useState } from "react";
 import { useLocale } from "next-intl";
+import type { Locale } from '@/libs/i18n/config';
 import { CVLayout } from "./CVLayout";
 import { CVDownloadButton } from "./CVDownloadButton";
+import { AtsDownloadButton } from './AtsDownloadButton';
 import { CVLanguageSwitcher } from "./CVLanguageSwitcher";
-import { JobOfferModal } from "./JobOfferModal";
 import { CVImportModal } from "./CVImportModal";
+import { CVTranslateModal } from "./CVTranslateModal";
 import { PortraitModal } from "./PortraitModal";
 import { usePortrait } from "../hooks/usePortrait";
-import { CVCustomizationProvider, useCVCustomization } from "../contexts/CVCustomizationContext";
+import { useCvDocument } from '../hooks/useCvDocument';
+import { atsFilename } from '../pdf/atsPdf';
+import { ReadinessPanel } from './ReadinessPanel';
+import { A4_DIMENSIONS } from '../constants';
 import {
   CVHeader,
   CVExperience,
@@ -24,56 +29,14 @@ interface CVContentProps {
   showControls?: boolean;
 }
 
-/**
- * Button to open the AI customization modal
- */
-function CustomizeButton({ onClick }: { onClick: () => void }) {
-  const { hasCustomTexts } = useCVCustomization();
-
-  return (
-    <button
-      onClick={onClick}
-      title="Customize for job offer"
-      className={`
-        relative w-9 h-9 rounded-md font-medium
-        transition-colors duration-200 shadow-sm flex items-center justify-center
-        ${
-          hasCustomTexts
-            ? "bg-green-500 text-white hover:bg-green-600"
-            : "bg-[#65B7FF] text-gray-100 hover:bg-[#529ED5] active:bg-[#407BA9]"
-        }
-      `}
-    >
-      <svg
-        className="w-5 h-5"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M13 10V3L4 14h7v7l9-11h-7z"
-        />
-      </svg>
-      {hasCustomTexts && (
-        <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-300 rounded-full border-2 border-white" />
-      )}
-    </button>
-  );
-}
-
-/**
- * Inner component that has access to the customization context
- */
+/** Master-CV editor; vacancy-specific variants live only in Submitting. */
 function CVContentInner({ showControls = true }: CVContentProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isTranslateOpen, setIsTranslateOpen] = useState(false);
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
-  const { customTexts } = useCVCustomization();
+  const { document } = useCvDocument();
   const { portrait } = usePortrait();
-  const locale = useLocale();
+  const locale = useLocale() as Locale;
 
   /**
    * Remounts the layout when anything it cannot detect by itself changes.
@@ -91,8 +54,6 @@ function CVContentInner({ showControls = true }: CVContentProps) {
    */
   const layoutKey = [
     "cv-layout",
-    customTexts.title ?? "default",
-    customTexts.summary ?? "default",
     portrait.shape.preset,
     portrait.shape.amplitude,
     portrait.shape.frequency,
@@ -103,8 +64,10 @@ function CVContentInner({ showControls = true }: CVContentProps) {
     portrait.image?.length ?? 0,
   ].join("-");
 
-  // Generate filename based on locale
-  const filename = `Dominik_Ben_CV_${locale.toUpperCase()}.pdf`;
+  const designedFilename = atsFilename({ document, locale }).replace(
+    /_ATS\.pdf$/,
+    '_Designed.pdf'
+  );
 
   return (
     <div className="min-h-screen py-8 print:py-0">
@@ -113,30 +76,76 @@ function CVContentInner({ showControls = true }: CVContentProps) {
         {showControls && (
           <div className="sticky top-8 print:hidden flex flex-col gap-8">
             <SheetNavigation />
-
-            <div className="flex flex-col gap-2">
-              <CustomizeButton onClick={() => setIsModalOpen(true)} />
-              <CVLanguageSwitcher />
-              <CVDownloadButton filename={filename} />
-            </div>
           </div>
         )}
 
-        {/* CV Layout - key forces re-render when custom texts change */}
-        <CVLayout key={layoutKey}>
-          <CVHeader />
-          <CVExperience />
-          <CVEducation />
-          <CVCertificates />
-          <CVLanguages />
-          <CVFooter />
-        </CVLayout>
+        {/* CV column — preview and readiness share the same width/alignment */}
+        <div
+          className="flex flex-col"
+          style={{ width: `${A4_DIMENSIONS.width}px` }}
+        >
+          <CVLayout key={layoutKey} previewId="master">
+            <CVHeader />
+            <CVExperience />
+            <CVEducation />
+            <CVCertificates />
+            <CVLanguages />
+            <CVFooter />
+          </CVLayout>
+
+          {showControls && (
+            <div className="mt-5 print:hidden">
+              <ReadinessPanel document={document} />
+            </div>
+          )}
+        </div>
 
         {showControls && (
           <div className="sticky top-8 print:hidden flex flex-col gap-2">
             <button
               onClick={() => setIsImportOpen(true)}
-              title="Import a CV"
+              title="Import a CV from file"
+              aria-label="Import a CV from file"
+              className="relative flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-500 shadow-sm transition-colors duration-200 hover:bg-gray-50 hover:text-gray-700"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 22h14a2 2 0 002-2V7l-5-5H6a2 2 0 00-2 2v4"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M14 2v4a2 2 0 002 2h4"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M2 15h10m-3 3l3-3-3-3"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsTranslateOpen(true)}
+              title={
+                "Fill " +
+                locale.toUpperCase() +
+                " gaps from the " +
+                (locale === "pl" ? "EN" : "PL") +
+                " CV"
+              }
+              aria-label="Translate gaps from the other CV language"
               className="relative flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-500 shadow-sm transition-colors duration-200 hover:bg-gray-50 hover:text-gray-700"
             >
               <svg
@@ -149,7 +158,7 @@ function CVContentInner({ showControls = true }: CVContentProps) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0-12l-4 4m4-4l4 4"
+                  d="M4 5h8M8 3v2c0 3.5-1.6 6.1-4 8m2.5-5c1.2 2 2.8 3.6 5 4.8M13 19l3.5-9 3.5 9M14.2 16h4.6"
                 />
               </svg>
             </button>
@@ -165,19 +174,27 @@ function CVContentInner({ showControls = true }: CVContentProps) {
                 <path strokeLinecap="round" strokeWidth={2} d="M6.5 19c1.2-2.6 3.2-3.9 5.5-3.9s4.3 1.3 5.5 3.9" />
               </svg>
             </button>
+
+            <div className="mt-6 flex flex-col gap-2">
+              <CVLanguageSwitcher />
+              <AtsDownloadButton document={document} locale={locale} />
+              <CVDownloadButton
+                filename={designedFilename}
+                previewId="master"
+              />
+            </div>
           </div>
         )}
       </div>
 
-      {/* Job Offer Modal */}
-      <JobOfferModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
-
       <CVImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
+      />
+
+      <CVTranslateModal
+        isOpen={isTranslateOpen}
+        onClose={() => setIsTranslateOpen(false)}
       />
 
       <PortraitModal
@@ -193,9 +210,5 @@ function CVContentInner({ showControls = true }: CVContentProps) {
  * Renders Dominik Beń's CV in Paginated (A4) format.
  */
 export function CVContent(props: CVContentProps) {
-  return (
-    <CVCustomizationProvider>
-      <CVContentInner {...props} />
-    </CVCustomizationProvider>
-  );
+  return <CVContentInner {...props} />;
 }

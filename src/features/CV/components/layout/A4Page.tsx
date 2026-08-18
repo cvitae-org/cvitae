@@ -6,6 +6,9 @@ import { A4_DIMENSIONS, A4_PAGE_TOP_SPACER_HEIGHT } from "../../constants";
 import type { A4PageProps } from "../../types";
 import { Spacer } from "./Spacer";
 
+/** Toggle the animated colorful background behind the CV preview. */
+const SHOW_COLORFUL_BACKGROUND = false;
+
 /**
  * A4 Page component - pure presentation, no pagination logic.
  * Provides fixed dimensions, padding, and visual styling.
@@ -30,29 +33,33 @@ export function A4Page({
       data-page={pageNumber}
       data-total-pages={totalPages}
     >
-      {/* Video Background - only visible on screen, not in print */}
-      <div className="absolute inset-0 print:hidden" style={{ zIndex: 0 }}>
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="w-full h-full object-cover"
-          style={{
-            opacity: 1, // Reduce opacity for better text readability
-          }}
-        >
-          <source src="/cv_background.mp4" type="video/mp4" />
-        </video>
-        {/* White overlay for better text contrast */}
-        <div className="absolute inset-0 bg-white/10 backdrop-blur-lg" />
-      </div>
+      {SHOW_COLORFUL_BACKGROUND && (
+        <>
+          {/* Video Background - only visible on screen, not in print */}
+          <div className="absolute inset-0 print:hidden" style={{ zIndex: 0 }}>
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+              style={{
+                opacity: 1, // Reduce opacity for better text readability
+              }}
+            >
+              <source src="/cv_background.mp4" type="video/mp4" />
+            </video>
+            {/* White overlay for better text contrast */}
+            <div className="absolute inset-0 bg-white/10 backdrop-blur-lg" />
+          </div>
 
-      {/* Semi-transparent white background for screen only */}
-      <div
-        className="absolute inset-0 bg-white/10 print:hidden"
-        style={{ zIndex: 0 }}
-      />
+          {/* Semi-transparent white background for screen only */}
+          <div
+            className="absolute inset-0 bg-white/10 print:hidden"
+            style={{ zIndex: 0 }}
+          />
+        </>
+      )}
 
       {/* Content area with padding */}
       <div

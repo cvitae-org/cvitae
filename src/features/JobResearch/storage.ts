@@ -6,6 +6,10 @@ import {
   NOT_STATED,
   workModes
 } from './types';
+import {
+  normalizeOfferText,
+  normalizeRequirements
+} from './requirements';
 
 /**
  * Reading and writing the shape of researched offers.
@@ -22,7 +26,7 @@ import {
 // data is migrated out of. `version` inside the payload is what decides
 // whether a stored shape needs migrating.
 export const STORAGE_KEY = 'cvitae.job-research.v1';
-const STORAGE_VERSION = 3;
+export const STORAGE_VERSION = 4;
 
 type StoredPayload = {
   version: number;
@@ -153,12 +157,41 @@ const migrate = (stored: JobRecord): JobRecord => {
     team: text('team'),
     how_to_apply: text('how_to_apply'),
     required_skills: list('required_skills'),
+    requirements: normalizeRequirements(raw.requirements, {
+      required_skills: list('required_skills'),
+      responsibilities: list('responsibilities')
+    }),
     source_url: plain('source_url'),
     source_mode: raw.source_mode === 'manual' ? 'manual' : 'url',
     source_note: [plain('source_note'), LEGACY_NOTE].filter(Boolean).join(' '),
     checked_at: plain('checked_at'),
     locale: plain('locale') || 'en',
-    notes: plain('notes')
+    notes: plain('notes'),
+    offer_text: normalizeOfferText(plain('offer_text')) || undefined
+  };
+};
+
+/** Adds v4's retained text and cited requirements without disturbing a row. */
+const normalizeCurrentRecord = (stored: JobRecord): JobRecord => {
+  const raw = stored as unknown as Record<string, unknown>;
+  return {
+    ...stored,
+    offer_text:
+      typeof raw.offer_text === 'string'
+        ? normalizeOfferText(raw.offer_text) || undefined
+        : undefined,
+    requirements: normalizeRequirements(raw.requirements, {
+      required_skills: Array.isArray(raw.required_skills)
+        ? raw.required_skills.filter(
+            (value): value is string => typeof value === 'string'
+          )
+        : [],
+      responsibilities: Array.isArray(raw.responsibilities)
+        ? raw.responsibilities.filter(
+            (value): value is string => typeof value === 'string'
+          )
+        : []
+    })
   };
 };
 
@@ -191,7 +224,9 @@ export const parseState = (stored: unknown): ResearchState => {
     // version 2 record would stamp it with the legacy note and throw away the
     // stored offer text that "Analyse" depends on.
     const identified = parsed.records.filter(isRecord);
-    const records = version < 2 ? identified.map(migrate) : identified;
+    const records = (version < 2 ? identified.map(migrate) : identified).map(
+      normalizeCurrentRecord
+    );
 
     const lists = withManualFirst(
       Array.isArray(parsed.lists) ? parsed.lists.filter(isList) : []
@@ -255,13 +290,20 @@ export const toCsv = (records: JobRecord[]): string => {
     'ideal_candidate',
     'responsibilities',
     'required_skills',
+    'requirements',
     'status',
     'source_url',
     'notes'
   ];
 
   const escape = (value: unknown): string => {
-    const text = Array.isArray(value) ? value.join('; ') : String(value ?? '');
+    const text = Array.isArray(value)
+      ? value
+          .map((item) =>
+            typeof item === 'string' ? item : JSON.stringify(item)
+          )
+          .join('; ')
+      : String(value ?? '');
     return `"${text.replace(/"/g, '""')}"`;
   };
 

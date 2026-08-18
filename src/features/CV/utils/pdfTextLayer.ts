@@ -40,6 +40,8 @@ export type TextLine = {
   baseline: number;
   /** The size the text is drawn at, so the invisible copy can match it. */
   fontSize: number;
+  /** Long URL text is covered by an independently checked link annotation. */
+  recoveryOptional: boolean;
 };
 
 /**
@@ -235,6 +237,13 @@ export const collectTextLines = (page: HTMLElement): TextLine[] => {
     const style = view.getComputedStyle(parent);
     const offset = baselineOffset(style.fontFamily, style.fontSize);
     const fontSize = parseFloat(style.fontSize);
+    const linkedElement = parent.closest<HTMLElement>('[data-cv-link]');
+    const linkTarget = linkedElement?.dataset.cvLink?.trim() ?? '';
+    // mailto/tel values remain part of prose recovery because ATS contact-field
+    // parsing depends on their text. Long web URLs are checked as annotations;
+    // extractors are allowed to disagree only about their wrap boundaries.
+    const recoveryOptional =
+      Boolean(linkTarget) && !/^(?:mailto|tel):/i.test(linkTarget);
 
     for (const line of linesOf(text)) {
       const content = line.text.trim();
@@ -245,7 +254,8 @@ export const collectTextLines = (page: HTMLElement): TextLine[] => {
         left: line.left - pageRect.left,
         width: line.width,
         baseline: line.top - pageRect.top + offset,
-        fontSize
+        fontSize,
+        recoveryOptional
       });
     }
   }
@@ -262,12 +272,11 @@ export const collectTextLines = (page: HTMLElement): TextLine[] => {
  * selection highlight is drawn from the glyphs, so a line that is too wide
  * highlights past its last word and one that is too narrow stops short.
  *
- * The difference goes into letter spacing rather than into the font size, which
- * is what it used to do. Shrinking the size to fit made the invisible line
- * shorter than the visible one as well as narrower — the highlight covered the
- * bottom two thirds of what it was over — and it moved every character's
- * position within the line, so clicking into the middle of a word landed
- * somewhere else. Spacing keeps the glyphs the size they look.
+ * Horizontal scaling preserves the PDF string's real word boundaries. Character
+ * spacing used to match the rectangle too, but PDF.js can infer a new word when
+ * tracked headings have a large glyph gap ("EDU CATION"). That made a fully
+ * present short CV fail meaningful-token recovery. Scaling keeps the baseline,
+ * height, and final width aligned without teaching extractors false spaces.
  */
 export const addTextLayer = (
   pdf: jsPDF,
@@ -286,14 +295,13 @@ export const addTextLayer = (
 
     const natural = pdf.getTextWidth(line.text);
 
-    // Spread over every glyph including the last, which is how PDF applies it.
-    const charSpace =
-      natural > 0 && widthMm > 0 ? (widthMm - natural) / line.text.length : 0;
+    const horizontalScale =
+      natural > 0 && widthMm > 0 ? widthMm / natural : 1;
 
     pdf.text(line.text, pxToMm(line.left), pxToMm(line.baseline), {
       renderingMode: "invisible",
       baseline: "alphabetic",
-      charSpace
+      horizontalScale
     });
 
     placed += 1;
@@ -341,10 +349,9 @@ const fetchFontBase64 = async (): Promise<string> => {
 
 /**
  * Registers the font on this document, returning false if it could not be had.
- *
- * A failure here must not fail the export. The text layer is an improvement to
- * a PDF that was usable without it, and losing the whole download because a
- * font did not load would trade a real problem for a worse one.
+ * The designed exporter now treats false as a hard preflight failure: a visual
+ * PDF without this layer is not a usable CV upload and must never be emitted
+ * silently as an image-only fallback.
  */
 export const registerTextLayerFont = async (pdf: jsPDF): Promise<boolean> => {
   try {

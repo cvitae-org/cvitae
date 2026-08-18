@@ -7,11 +7,20 @@ import {
   getServerSnapshot,
   getSnapshot,
   patchApply,
-  setTailoredCV,
+  setEvidenceCV,
   subscribe
 } from '../store';
 import { liveOfferText, toOfferBrief } from '../offerText';
-import type { ApplyDraft, Submission } from '../types';
+import type {
+  ApplyDraft,
+  EvidenceProposalResponse,
+  Submission
+} from '../types';
+import {
+  buildEvidenceRequest,
+  createEvidenceVariant,
+  EvidenceValidationError
+} from '../evidence';
 
 /**
  * Reads the queue, and runs the two model calls the flow needs.
@@ -55,7 +64,7 @@ export const useSubmitting = () => {
       // The locale here is the submission's own, not the app's: it decides
       // what language the model writes in, and that is a choice made per
       // application rather than by whichever version of the site is open.
-      payload: Record<string, unknown> & { locale: string },
+      payload: Record<string, unknown>,
       onSuccess: (data: Record<string, unknown>) => void
     ) => {
       setPending(action);
@@ -74,11 +83,23 @@ export const useSubmitting = () => {
         const data = await response.json();
 
         if (!response.ok) {
-          setError(data.error ?? 'The model could not be reached.');
+          const details = Array.isArray(data.issues)
+            ? ` ${data.issues.slice(0, 3).join(' ')}`
+            : '';
+          setError(`${data.error ?? 'The model could not be reached.'}${details}`);
           return false;
         }
 
-        onSuccess(data);
+        try {
+          onSuccess(data);
+        } catch (cause) {
+          setError(
+            cause instanceof EvidenceValidationError
+              ? `The proposal failed local evidence checks. ${cause.issues.slice(0, 3).join(' ')}`
+              : 'The proposal could not be materialized safely.'
+          );
+          return false;
+        }
         return true;
       } catch {
         setError('Could not reach the AI service.');
@@ -90,38 +111,34 @@ export const useSubmitting = () => {
     []
   );
 
-  /**
-   * Rewrites the CV's title and summary for this offer.
-   *
-   * The rest of the document — experience, education, skills — is fixed; those
-   * are facts, and this is the part of a CV that is genuinely per-application.
-   */
+  /** Builds a cited proposal and materializes only the permitted CV fields. */
   const generateCv = useCallback(
     async (submission: Submission) => {
-      const brief = toOfferBrief(
+      const sourceCv = getCvState()[submission.language];
+      const request = buildEvidenceRequest(
+        sourceCv,
         submission.offer,
-        liveOfferText(submission.recordId)
+        submission.language
       );
 
       return call(
         'cv',
         '/api/cv/generate',
-        {
-          jobOffer: brief,
-          locale: submission.language,
-          // Read at send time rather than subscribed to: this is an event
-          // handler, and the CV that matters is the one for the language the
-          // application is being written in, not the one the page is showing.
-          cv: getCvState()[submission.language]
-        },
+        { ...request },
         (data) => {
-          if (typeof data.summary !== 'string') return;
-          setTailoredCV(submission.id, {
-            title: typeof data.title === 'string' ? data.title : '',
-            summary: data.summary,
-            language: submission.language,
-            generatedAt: new Date().toISOString()
-          });
+          const response = data as EvidenceProposalResponse;
+          if (response.version !== 'evidence-v2' || !response.proposal) {
+            throw new Error('Unexpected evidence proposal response.');
+          }
+          setEvidenceCV(
+            submission.id,
+            createEvidenceVariant({
+              sourceCv,
+              sourceOffer: submission.offer,
+              language: submission.language,
+              response
+            })
+          );
         }
       );
     },
@@ -133,7 +150,7 @@ export const useSubmitting = () => {
     async (submission: Submission) => {
       const brief = toOfferBrief(
         submission.offer,
-        liveOfferText(submission.recordId)
+        liveOfferText(submission.recordId) ?? submission.offer.offer_text
       );
 
       return call(
@@ -144,8 +161,8 @@ export const useSubmitting = () => {
           locale: submission.language,
           company: submission.offer.company,
           position: submission.offer.position,
-          cvTitle: submission.cv?.title,
-          cvSummary: submission.cv?.summary,
+          cvTitle: submission.cv?.output.skills.role,
+          cvSummary: submission.cv?.output.role_description,
           cv: getCvState()[submission.language]
         },
         (data) => {
