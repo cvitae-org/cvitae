@@ -8,6 +8,7 @@ import {
   View
 } from '@react-pdf/renderer';
 import type { CvDocument } from '../document';
+import { absoluteUrl, uniqueContactLinks } from './contactLinks';
 import type { Locale } from '@/libs/i18n/config';
 
 const headings: Record<
@@ -88,12 +89,6 @@ const styles = StyleSheet.create({
   bulletText: { flex: 1 },
   detail: { marginTop: 1 },
 });
-
-const absoluteUrl = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  return /^[a-z][a-z\d+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
-};
 
 /** PDF URI strings are safest as ASCII; the visible label remains Unicode. */
 const annotationUrl = (value: string): string => {
@@ -199,7 +194,7 @@ export function AtsPdfDocument({
           {document.personal.location && (
             <Text style={styles.contactItem}>{document.personal.location}</Text>
           )}
-          {Object.values(document.personal.links).map((url) => (
+          {uniqueContactLinks(document).map((url) => (
             <Link key={url} src={annotationUrl(url)} style={[styles.contactItem, styles.link]}>
               {breakableUrl(url)}
             </Link>
@@ -325,7 +320,7 @@ export const atsExpectedText = (
     document.personal.email,
     document.personal.phone,
     document.personal.location,
-    ...Object.values(document.personal.links).map(breakableUrl),
+    ...uniqueContactLinks(document).map(breakableUrl),
     document.role_description ? h.summary : '',
     document.role_description,
     hasSkills ? h.skills : '',
@@ -361,4 +356,4 @@ export const atsExpectedText = (
 };
 
 export const atsIgnoredRecoveryText = (document: CvDocument): string[] =>
-  Object.values(document.personal.links).map(breakableUrl);
+  uniqueContactLinks(document).map(breakableUrl);

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Locale } from '@/libs/i18n/config';
 import type { CvDocument } from '../document';
+import { uniqueContactLinks } from './contactLinks';
 import { preflightPdf, type PdfPreflightResult } from './preflight';
 
 const FONT_FAMILY = 'DejaVu Sans ATS';
@@ -78,7 +79,9 @@ const expectedLinks = (document: CvDocument): string[] => [
   ...(document.personal.phone
     ? [`tel:${document.personal.phone.replace(/[^+\d]/g, '')}`]
     : []),
-  ...Object.values(document.personal.links).map((url) =>
+  // The same list the header draws, so preflight cannot demand an annotation
+  // for a duplicate the renderer deliberately left out.
+  ...uniqueContactLinks(document).map((url) =>
     /^[a-z][a-z\d+.-]*:/i.test(url.trim()) ? url.trim() : `https://${url.trim()}`
   )
 ];
