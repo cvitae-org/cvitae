@@ -81,11 +81,12 @@
       "freeModelsFailed": "The model list could not be loaded.",
       "freeModelsCaveat": "Free models are capped per minute, so analysing many offers in a row will still be interrupted. For a long run, use a local model or a paid one.",
       "contextTokens": "{tokens}k context",
-      "apiKey": "Your own API key",
-      "apiKeyHint": "Use your own account instead of the server's key. The key is sent to this app's server, which forwards it to the provider and keeps no copy.",
+      "apiKey": "Your {provider} API key",
+      "apiKeyHint": "Use your own {provider} account instead of the server's key. It is sent to this app's server, which forwards it to {provider} and keeps no copy.",
       "apiKeyPlaceholder": "Leave empty to use the server's key",
-      "apiKeyStorage": "Stored in this browser only, and readable by anything running on this page. Use a key scoped to this app, and remove it when you are done.",
-      "apiKeyClear": "Remove the stored key"
+      "apiKeyStorage": "Stored in this browser only, against this provider, and readable by anything running on this page. Use a key scoped to this app, and remove it when you are done.",
+      "apiKeyClear": "Remove the stored {provider} key",
+      "apiKeyOthers": "{count, plural, one {# key is stored for another provider.} other {# keys are stored for other providers.}} Each is only ever sent to the provider it was entered for."
     }
   },
   "cv": {

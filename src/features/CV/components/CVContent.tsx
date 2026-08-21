@@ -83,7 +83,7 @@ function CVContentInner({ showControls = true }: CVContentProps) {
           </div>
         )}
 
-        {/* CV column — the docked readiness bar is sized to match this width */}
+        {/* CV column */}
         <div
           className="flex flex-col"
           style={{ width: `${A4_DIMENSIONS.width}px` }}

@@ -9,7 +9,6 @@ import {
 } from '@/components/AuditBar';
 import type { CvDocument } from '../document';
 import type { EvidenceCvVariant } from '@/features/Submitting/types';
-import { A4_DIMENSIONS } from '../constants';
 import { runReadinessChecks, type ReadinessCategory } from '../readiness';
 import { PDF_DOWNLOAD_INFO_ID, usePdfDownloadMessages } from './PdfDownloadPanel';
 
@@ -119,7 +118,6 @@ export function ReadinessPanel({
       title={t('title')}
       sections={sections}
       docked={docked}
-      width={A4_DIMENSIONS.width}
       className={className}
       forceOpen={messages.length > 0}
       disclaimer={t('disclaimer')}

@@ -50,7 +50,6 @@ export function AuditBar({
   disclaimer,
   forceOpen = false,
   docked = true,
-  width,
   className = ''
 }: {
   id?: string;
@@ -65,8 +64,6 @@ export function AuditBar({
    */
   forceOpen?: boolean;
   docked?: boolean;
-  /** Matches the bar to the column it belongs under. Defaults to the sheet. */
-  width?: number;
   className?: string;
 }) {
   const t = useTranslations('audit');
@@ -95,7 +92,6 @@ export function AuditBar({
       id={id}
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
-      style={docked && width ? { width } : undefined}
       className={`rounded-lg border border-gray-200 bg-gray-50 print:hidden ${
         docked
           ? 'fixed bottom-4 left-1/2 z-40 w-[min(64rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] -translate-x-1/2 bg-white/95 shadow-lg backdrop-blur'

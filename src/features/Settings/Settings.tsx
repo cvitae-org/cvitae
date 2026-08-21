@@ -8,7 +8,7 @@ import { LocalizedError } from '@/components/LocalizedError';
 import { errorFromApi, type ErrorDescriptor } from '@/libs/i18n/errors';
 import { usePathname, useRouter } from '@/libs/i18n/routing';
 import type { Locale } from '@/libs/i18n/config';
-import { providerIds, providers } from '@/libs/ai/providers';
+import { providerIds, providerNeedsKey, providers } from '@/libs/ai/providers';
 import {
   DEFAULT_LOCAL_BASE_URL,
   loadSettings,
@@ -126,6 +126,26 @@ export function Settings() {
   );
 
   const isLocal = settings.providerId === 'local';
+
+  /**
+   * The provider a key can be entered for, if any.
+   *
+   * Null while the provider is left as "the server's", because a key has to
+   * name the account it belongs to and the browser cannot know which company
+   * the server is configured to call. The server refuses that pairing too.
+   */
+  const keyedProvider =
+    settings.providerId !== '' && providerNeedsKey(settings.providerId)
+      ? settings.providerId
+      : null;
+
+  const currentKey = keyedProvider
+    ? settings.apiKeys[keyedProvider] ?? ''
+    : '';
+
+  const otherKeyCount = Object.entries(settings.apiKeys).filter(
+    ([providerId, value]) => providerId !== keyedProvider && (value ?? '').trim()
+  ).length;
   const activeProvider =
     settings.providerId === '' ? null : providers[settings.providerId];
 
@@ -309,41 +329,67 @@ export function Settings() {
               )}
             </section>
 
-            {settings.providerId !== 'local' && (
+            {keyedProvider && (
               <section className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <label
                   htmlFor="api-key"
                   className="block text-sm font-medium text-gray-700"
                 >
-                  {t('ai.apiKey')}{' '}
+                  {/* Names the provider, so it is never ambiguous whose key
+                      this box holds. */}
+                  {t('ai.apiKey', { provider: providers[keyedProvider].label })}{' '}
                   <span className="font-normal text-gray-400">
                     ({commonT('optional')})
                   </span>
                 </label>
                 <p className="mt-0.5 text-xs text-gray-500">
-                  {t('ai.apiKeyHint')}
+                  {t('ai.apiKeyHint', {
+                    provider: providers[keyedProvider].label
+                  })}
                 </p>
                 <input
                   id="api-key"
+                  // Keyed by provider so React replaces the node rather than
+                  // reusing it, which stops a password manager or the browser
+                  // carrying one provider's value into another's field.
+                  key={keyedProvider}
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
-                  value={settings.apiKey}
-                  onChange={(event) => update({ apiKey: event.target.value })}
+                  value={currentKey}
+                  onChange={(event) =>
+                    update({
+                      apiKeys: {
+                        ...settings.apiKeys,
+                        [keyedProvider]: event.target.value
+                      }
+                    })
+                  }
                   placeholder={t('ai.apiKeyPlaceholder')}
                   className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm text-gray-900 placeholder:font-sans placeholder:text-gray-400 focus:border-transparent focus:ring-2 focus:ring-[#65B7FF]"
                 />
                 <p className="mt-2 text-[11px] text-gray-400">
                   {t('ai.apiKeyStorage')}
                 </p>
-                {settings.apiKey.trim() && (
+                {currentKey.trim() && (
                   <button
                     type="button"
-                    onClick={() => update({ apiKey: '' })}
+                    onClick={() => {
+                      const next = { ...settings.apiKeys };
+                      delete next[keyedProvider];
+                      update({ apiKeys: next });
+                    }}
                     className="mt-2 text-[11px] font-medium text-gray-500 underline hover:text-gray-700"
                   >
-                    {t('ai.apiKeyClear')}
+                    {t('ai.apiKeyClear', {
+                      provider: providers[keyedProvider].label
+                    })}
                   </button>
+                )}
+                {otherKeyCount > 0 && (
+                  <p className="mt-2 text-[11px] text-gray-400">
+                    {t('ai.apiKeyOthers', { count: otherKeyCount })}
+                  </p>
                 )}
               </section>
             )}

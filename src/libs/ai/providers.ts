@@ -96,6 +96,16 @@ export class AiConfigError extends Error {
 export const isProviderId = (value: unknown): value is ProviderId =>
   typeof value === 'string' && (providerIds as readonly string[]).includes(value);
 
+/**
+ * Whether this provider authenticates at all.
+ *
+ * False only for a local runner, which accepts any bearer token and checks
+ * none. Shared with the browser so the settings page asks for a credential
+ * exactly where one can be used.
+ */
+export const providerNeedsKey = (providerId: ProviderId): boolean =>
+  providers[providerId].apiKeyEnvVar !== '';
+
 export const resolveProviderId = (): ProviderId => {
   const configured = process.env.AI_PROVIDER?.trim();
 
@@ -272,6 +282,17 @@ export const resolveModel = async (
 
   const clientKey =
     typeof override.apiKey === 'string' ? override.apiKey.trim() : '';
+
+  // A key belongs to one provider. Accepting one without being told whose it
+  // is would spend it against whatever the server happens to be configured for
+  // — an OpenRouter key posted to OpenAI, which is not a failed call but a
+  // credential handed to a third party. The browser scopes keys per provider;
+  // this is the same invariant enforced where it cannot be bypassed.
+  if (clientKey && (override.providerId === undefined || override.providerId === '')) {
+    throw new AiConfigError(
+      'An API key must name the provider it belongs to.'
+    );
+  }
 
   // A caller-supplied key aimed at a caller-supplied endpoint is a way to make
   // this server post someone's credential wherever it is told to. The two are

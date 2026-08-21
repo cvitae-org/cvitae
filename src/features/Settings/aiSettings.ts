@@ -1,16 +1,22 @@
-import type { ProviderId } from '@/libs/ai/providers';
+import { isProviderId, type ProviderId } from '@/libs/ai/providers';
 
 /**
  * AI settings held in the browser and sent with each analysis request.
  *
- * `apiKey` is the user's own credential, and it is held here in full knowledge
- * of what that costs: localStorage is readable by any script on the page, so a
- * key here is exactly as safe as the page is. It is offered anyway because the
- * alternative is worse for the person it belongs to — without it the only ways
- * to run the app are a local model or the operator's key, and neither is
- * something a user can choose for themselves. It is never sent anywhere but
+ * `apiKeys` holds the user's own credentials, in full knowledge of what that
+ * costs: localStorage is readable by any script on the page, so a key here is
+ * exactly as safe as the page is. They are offered anyway because the
+ * alternative is worse for the person they belong to — without them the only
+ * ways to run the app are a local model or the operator's key, and neither is
+ * something a user can choose for themselves. A key is never sent anywhere but
  * this app's own server, which forwards it to the chosen provider and keeps no
- * copy. Leaving it empty falls back to the server's env credential.
+ * copy. Leaving one empty falls back to the server's env credential.
+ *
+ * Keyed by provider rather than held as one string, because a key belongs to
+ * exactly one account at one company. A single field survived a change of
+ * provider — switching reset the model and kept the credential — so an
+ * OpenRouter key would be posted to OpenAI the moment the dropdown moved. That
+ * is not a failed request; it is handing a live secret to a third party.
  */
 
 export type AiSettings = {
@@ -27,12 +33,13 @@ export type AiSettings = {
   /** Only meaningful for the local provider. */
   localBaseUrl: string;
   /**
-   * The user's own provider key. Empty means "use the server's".
+   * The user's own key per provider. A missing entry means "use the server's".
    *
-   * Refused by the server when a custom base URL is also set, so it can never
-   * be pointed at an endpoint other than the provider's own.
+   * The server refuses a key that arrives without a provider named, and refuses
+   * one paired with a custom base URL — so a key can only ever reach the
+   * provider it was entered for.
    */
-  apiKey: string;
+  apiKeys: Partial<Record<ProviderId, string>>;
 };
 
 export const DEFAULT_LOCAL_BASE_URL = 'http://localhost:11434/v1';
@@ -42,7 +49,40 @@ export const defaultSettings: AiSettings = {
   modelId: '',
   extractionModelId: '',
   localBaseUrl: DEFAULT_LOCAL_BASE_URL,
-  apiKey: ''
+  apiKeys: {}
+};
+
+/**
+ * Reads the stored keys, discarding anything that is not a string under a known
+ * provider id.
+ *
+ * The legacy single `apiKey` is carried over only when the settings also name
+ * the provider it was being sent to. Without that, which account it belongs to
+ * is unknowable from here, and guessing would reintroduce exactly the leak this
+ * shape exists to prevent — so it is dropped, and the user re-enters it against
+ * a provider.
+ */
+const readKeys = (parsed: Partial<AiSettings> & { apiKey?: unknown }) => {
+  const keys: Partial<Record<ProviderId, string>> = {};
+
+  if (parsed.apiKeys && typeof parsed.apiKeys === 'object') {
+    Object.entries(parsed.apiKeys).forEach(([providerId, value]) => {
+      if (isProviderId(providerId) && typeof value === 'string' && value.trim()) {
+        keys[providerId] = value;
+      }
+    });
+  }
+
+  if (
+    typeof parsed.apiKey === 'string' &&
+    parsed.apiKey.trim() &&
+    isProviderId(parsed.providerId) &&
+    !keys[parsed.providerId]
+  ) {
+    keys[parsed.providerId] = parsed.apiKey;
+  }
+
+  return keys;
 };
 
 const STORAGE_KEY = 'cvitae.ai-settings.v1';
@@ -54,7 +94,7 @@ export const loadSettings = (): AiSettings => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultSettings;
 
-    const parsed = JSON.parse(raw) as Partial<AiSettings>;
+    const parsed = JSON.parse(raw) as Partial<AiSettings> & { apiKey?: unknown };
     return {
       providerId: (parsed.providerId as AiSettings['providerId']) ?? '',
       modelId: typeof parsed.modelId === 'string' ? parsed.modelId : '',
@@ -66,7 +106,7 @@ export const loadSettings = (): AiSettings => {
         typeof parsed.localBaseUrl === 'string' && parsed.localBaseUrl
           ? parsed.localBaseUrl
           : DEFAULT_LOCAL_BASE_URL,
-      apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : ''
+      apiKeys: readKeys(parsed)
     };
   } catch {
     return defaultSettings;
@@ -91,8 +131,14 @@ export const toRequestOverride = (settings: AiSettings) => ({
   extractionModelId: settings.extractionModelId.trim() || undefined,
   baseURL:
     settings.providerId === 'local' ? settings.localBaseUrl.trim() : undefined,
-  // Never sent alongside a base URL: the server refuses that pairing, and the
-  // local provider needs no credential anyway.
+  /*
+   * Only the selected provider's own key, and only when a provider is selected
+   * at all. Deferring to the server's provider means deferring to its key too:
+   * the browser cannot know which company the server is configured to call, so
+   * it has nothing it could safely send.
+   */
   apiKey:
-    settings.providerId === 'local' ? undefined : settings.apiKey.trim() || undefined
+    settings.providerId === '' || settings.providerId === 'local'
+      ? undefined
+      : settings.apiKeys[settings.providerId]?.trim() || undefined
 });

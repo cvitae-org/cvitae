@@ -65,6 +65,19 @@ describe('model resolution with a caller-supplied key', () => {
     expect(first.model).toBe(second.model);
   });
 
+  /**
+   * The server half of the per-provider rule. The browser scopes keys already;
+   * this makes the invariant one a caller cannot talk its way around.
+   */
+  it('refuses a key that does not name the provider it belongs to', async () => {
+    await expect(resolveModel({ apiKey: CLIENT_KEY })).rejects.toBeInstanceOf(
+      AiConfigError
+    );
+    await expect(
+      resolveModel({ providerId: '', apiKey: CLIENT_KEY })
+    ).rejects.toBeInstanceOf(AiConfigError);
+  });
+
   it('keeps the loopback guard on local base URLs', () => {
     expect(() => assertLoopbackUrl('http://evil.example.com/v1')).toThrow(
       AiConfigError

@@ -81,11 +81,12 @@
       "freeModelsFailed": "Nie udało się wczytać listy modeli.",
       "freeModelsCaveat": "Darmowe modele mają limit na minutę, więc analiza wielu ofert po kolei i tak zostanie przerwana. Do dłuższej serii użyj modelu lokalnego lub płatnego.",
       "contextTokens": "kontekst {tokens}k",
-      "apiKey": "Własny klucz API",
-      "apiKeyHint": "Skorzystaj z własnego konta zamiast klucza serwera. Klucz trafia na serwer tej aplikacji, który przekazuje go dostawcy i nie zachowuje kopii.",
+      "apiKey": "Twój klucz API do {provider}",
+      "apiKeyHint": "Skorzystaj z własnego konta {provider} zamiast klucza serwera. Klucz trafia na serwer tej aplikacji, który przekazuje go do {provider} i nie zachowuje kopii.",
       "apiKeyPlaceholder": "Zostaw puste, aby użyć klucza serwera",
-      "apiKeyStorage": "Przechowywany wyłącznie w tej przeglądarce i możliwy do odczytania przez wszystko, co działa na tej stronie. Użyj klucza ograniczonego do tej aplikacji i usuń go, gdy skończysz.",
-      "apiKeyClear": "Usuń zapisany klucz"
+      "apiKeyStorage": "Przechowywany wyłącznie w tej przeglądarce, przypisany do tego dostawcy, i możliwy do odczytania przez wszystko, co działa na tej stronie. Użyj klucza ograniczonego do tej aplikacji i usuń go, gdy skończysz.",
+      "apiKeyClear": "Usuń zapisany klucz do {provider}",
+      "apiKeyOthers": "{count, plural, one {# klucz jest zapisany dla innego dostawcy.} few {# klucze są zapisane dla innych dostawców.} many {# kluczy jest zapisanych dla innych dostawców.} other {# klucza jest zapisanych dla innych dostawców.}} Każdy trafia wyłącznie do dostawcy, dla którego został wpisany."
     }
   },
   "cv": {
