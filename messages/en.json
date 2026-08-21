@@ -382,6 +382,7 @@
         "phone": "Phone number is missing.",
         "location": "Location is missing; some applications use it as a filter.",
         "link": "{label} has an invalid URL: {url}",
+        "duplicate-link": "{url} is stored more than once, under: {labels}. The editor only shows website, github and linkedin, so the extra copies are invisible there but reach the exports.",
         "summary": "Summary is empty.",
         "experience": "Experience is empty.",
         "chronology": "Experience entry {number} has ambiguous employer/title/date fields.",

@@ -51,6 +51,24 @@ describe('ATS contact links', () => {
     ).toEqual(['example.com/one', 'example.com/two']);
   });
 
+  /**
+   * The case that survived the first fix: two entries printing as the same
+   * address but differing by a character that renders as nothing, picked up
+   * from a paste or an import.
+   */
+  it('treats invisible differences as no difference', () => {
+    expect(
+      uniqueContactLinks(
+        withLinks({
+          website: 'bendominik.eu',
+          portfolio: 'bendominik.eu\u200B',
+          site: '\u00A0bendominik.eu ',
+          home: 'bendominik.eu\uFEFF'
+        })
+      )
+    ).toEqual(['bendominik.eu']);
+  });
+
   it('drops blanks rather than printing an empty contact line', () => {
     expect(
       uniqueContactLinks(withLinks({ a: '   ', b: 'example.com' }))

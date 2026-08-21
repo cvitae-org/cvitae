@@ -382,6 +382,7 @@
         "phone": "Brakuje numeru telefonu.",
         "location": "Brakuje lokalizacji; niektóre aplikacje używają jej jako filtra.",
         "link": "{label} ma nieprawidłowy adres URL: {url}",
+        "duplicate-link": "{url} jest zapisany więcej niż raz, pod kluczami: {labels}. Edytor pokazuje tylko website, github i linkedin, więc dodatkowe kopie są tam niewidoczne, ale trafiają do eksportów.",
         "summary": "Podsumowanie jest puste.",
         "experience": "Sekcja doświadczenia jest pusta.",
         "chronology": "Pozycja doświadczenia {number} ma niejednoznaczne pola pracodawcy, stanowiska lub dat.",

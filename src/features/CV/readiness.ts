@@ -1,5 +1,6 @@
 import type { CvDocument } from './document';
 import type { PdfPreflightResult } from './pdf/preflight';
+import { linkIdentity } from './pdf/contactLinks';
 import type { EvidenceCvVariant } from '@/features/Submitting/types';
 
 export type ReadinessCategory =
@@ -122,10 +123,37 @@ export const runReadinessChecks = ({
       finding('location', 'Location is missing; some applications use it as a filter.')
     );
   }
+  const linkDestinations = new Map<string, string[]>();
   Object.entries(document.personal.links).forEach(([label, url]) => {
     if (invalidLink(url)) {
       report['parsed-field-coverage'].push(
         finding('link', `${label} has an invalid URL: ${url}`, 'block', { label, url })
+      );
+    }
+    const destination = linkIdentity(url);
+    if (destination) {
+      linkDestinations.set(destination, [
+        ...(linkDestinations.get(destination) ?? []),
+        label
+      ]);
+    }
+  });
+
+  /*
+   * The editor shows three link fields by name, so an entry stored under any
+   * other key is invisible there — an import can add one, and nothing in the
+   * interface will ever mention it again. The exports read the whole map, so
+   * the first anyone hears of it is the same address printed twice on a PDF.
+   * Named here, with the keys holding it, because the audit is the only place
+   * that reads the document rather than a fixed list of fields.
+   */
+  linkDestinations.forEach((labels, destination) => {
+    if (labels.length > 1) {
+      report['parsed-field-coverage'].push(
+        finding('duplicate-link', `${destination} is stored under ${labels.join(', ')}.`, 'warning', {
+          url: destination,
+          labels: labels.join(', ')
+        })
       );
     }
   });

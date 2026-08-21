@@ -37,7 +37,12 @@ export type PortraitShape = {
   amplitude: number;
   /** Lobes down the right edge. */
   frequency: number;
-  /** Top-left corner rounding, as a fraction of the shorter side. */
+  /**
+   * Corner rounding, as a fraction of the shorter side.
+   *
+   * Left corners always. Right corners only on `straight` — a wave meets the
+   * top-right and bottom-right flush, and rounding those would cut the lobes.
+   */
   rounding: number;
 };
 
@@ -152,11 +157,42 @@ const rightEdge = (amplitude: number, frequency: number): string => {
   return path;
 };
 
+/**
+ * A rectangle with the same rounding on every corner.
+ *
+ * Used only by `straight`. The wave path cannot share this: its right edge is
+ * a curve that already owns those two corners, and grafting arcs onto it
+ * would flatten the first and last lobes.
+ */
+const roundedRectPath = (radius: number): string => {
+  if (radius <= 0) {
+    return `M 0 0 L ${SHAPE_WIDTH} 0 L ${SHAPE_WIDTH} ${SHAPE_HEIGHT} L 0 ${SHAPE_HEIGHT} Z`;
+  }
+
+  const right = SHAPE_WIDTH - radius;
+  const bottom = SHAPE_HEIGHT - radius;
+
+  return (
+    `M ${radius} 0 ` +
+    `L ${right} 0 ` +
+    `Q ${SHAPE_WIDTH} 0 ${SHAPE_WIDTH} ${radius} ` +
+    `L ${SHAPE_WIDTH} ${bottom} ` +
+    `Q ${SHAPE_WIDTH} ${SHAPE_HEIGHT} ${right} ${SHAPE_HEIGHT} ` +
+    `L ${radius} ${SHAPE_HEIGHT} ` +
+    `Q 0 ${SHAPE_HEIGHT} 0 ${bottom} ` +
+    `L 0 ${radius} ` +
+    `Q 0 0 ${radius} 0 ` +
+    'Z'
+  );
+};
+
 /** The mask outline for a set of parameters, as SVG path data. */
 export const shapePath = (shape: PortraitShape): string => {
   if (shape.preset === 'classic') return CLASSIC_PATH;
 
   const radius = shape.rounding * Math.min(SHAPE_WIDTH, SHAPE_HEIGHT) * 0.5;
+
+  if (shape.preset === 'straight') return roundedRectPath(radius);
 
   return (
     `M ${radius} 0 ` +

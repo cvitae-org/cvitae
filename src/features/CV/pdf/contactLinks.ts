@@ -29,9 +29,22 @@ export const absoluteUrl = (value: string): string => {
  * identical: `linkedin.com/in/x` and `https://www.linkedin.com/in/x/` are one
  * link written two ways. The first spelling of each destination is the one
  * kept, since that is the one the CV was written with.
+ *
+ * Characters that do not render are stripped before comparing. Two entries that
+ * print as the same address are the same address, and a zero-width space or a
+ * non-breaking space picked up from a paste or an import is exactly the kind of
+ * difference that survives every other rule here while being invisible on the
+ * page — leaving a duplicate nobody can see a reason for.
  */
-const linkIdentity = (value: string): string =>
+const INVISIBLE = /[\u00AD\u200B-\u200F\u2028\u2029\uFEFF]/g;
+
+export const linkIdentity = (value: string): string =>
   absoluteUrl(value)
+    .normalize('NFKC')
+    .replace(INVISIBLE, '')
+    // Every kind of space, not just the ASCII one: an address does not contain
+    // one, so any that survived a paste is noise rather than content.
+    .replace(/\s+/g, '')
     .toLowerCase()
     .replace(/^https?:\/\//, '')
     .replace(/^www\./, '')
