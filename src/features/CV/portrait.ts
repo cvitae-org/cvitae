@@ -75,9 +75,15 @@ export const PRESETS = {
   straight: { amplitude: 0, frequency: 1, rounding: 0 }
 } as const;
 
-export type PresetName = keyof typeof PRESETS;
-
-export const PRESET_NAMES = Object.keys(PRESETS) as PresetName[];
+/**
+ * Named shapes a stored CV may reference.
+ *
+ * No longer offered for selection: the portrait modal edits the picture, not
+ * the silhouette. They stay because `clampShape` reads its defaults from here
+ * and a document written when the presets were selectable must still render as
+ * it did.
+ */
+type PresetName = keyof typeof PRESETS;
 
 /** The viewBox every generated path is drawn in, matching the original asset. */
 export const SHAPE_WIDTH = 766;
@@ -93,7 +99,7 @@ export const clampShape = (shape: Partial<PortraitShape>): PortraitShape => {
   const preset: PresetName =
     typeof shape.preset === 'string' && shape.preset in PRESETS
       ? (shape.preset as PresetName)
-      : 'classic';
+      : 'soft';
 
   return {
     preset,
@@ -248,7 +254,7 @@ export const emptyPortrait = (): PortraitState => ({
   zoom: 1,
   offsetX: 0,
   offsetY: 0,
-  shape: clampShape({ preset: 'classic' })
+  shape: clampShape({ preset: 'soft' })
 });
 
 const parsePortrait = (stored: unknown): PortraitState => {
@@ -296,12 +302,6 @@ export const setPortraitFraming = (
     zoom: clamp(framing.zoom ?? current.zoom, 1, 3),
     offsetX: clamp(framing.offsetX ?? current.offsetX, -1, 1),
     offsetY: clamp(framing.offsetY ?? current.offsetY, -1, 1)
-  }));
-
-export const setPortraitShape = (shape: Partial<PortraitShape>) =>
-  store.update((current) => ({
-    ...current,
-    shape: clampShape({ ...current.shape, ...shape })
   }));
 
 /**

@@ -10,21 +10,24 @@ import {
   backgroundSvgUrl,
   downscaleImage,
   portraitWidthRatio,
-  PRESET_NAMES,
-  PRESETS,
   setPortraitFraming,
   setPortraitImage,
-  setPortraitShape,
   shapeSvgUrl,
-  type PresetName,
 } from "../portrait";
 
 /**
- * Choosing the portrait and the shape it is cut to.
+ * Choosing the portrait, and framing it inside the shape it is cut to.
  *
- * Both used to be files in `public/` — a 6.4MB PNG and a hand-drawn SVG path —
- * which meant changing either was an edit to the repository rather than to the
- * CV. They are settings now, and this is where they are set.
+ * The picture used to be a 6.4MB PNG in `public/`, which meant changing it was
+ * an edit to the repository rather than to the CV. It is a setting now, and
+ * this is where it is set.
+ *
+ * The silhouette is not. It was adjustable here — presets plus depth, count and
+ * rounding sliders — and those controls are gone: the shape is a decision about
+ * how this CV looks that is made once, and offering four sliders for it beside
+ * the one thing people actually come here to do made the picture harder to
+ * change, not easier. The parameters remain in the store and still drive the
+ * mask; nothing about the rendered CV changed.
  *
  * No model is involved in the image. "Make it fit" is a framing problem, and
  * framing is a crop: the reason a photograph sits badly in this mask is almost
@@ -217,65 +220,6 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
               />
             </fieldset>
 
-            <fieldset className="space-y-2">
-              <legend className="mb-1 text-xs font-medium text-gray-700">{t('shape')}</legend>
-              <div className="flex flex-wrap gap-1.5">
-                {PRESET_NAMES.map((name: PresetName) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setPortraitShape({ preset: name, ...PRESETS[name] })}
-                    className={`rounded px-2 py-1 text-[11px] capitalize transition-colors ${
-                      shape.preset === name
-                        ? "bg-[#65B7FF] text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    {t(`preset.${name}`)}
-                  </button>
-                ))}
-              </div>
-
-              {shape.preset === "classic" ? (
-                /*
-                  The original is a drawn curve, not a generated one, so there
-                  are no parameters behind it to move. Saying so is better than
-                  showing sliders that would silently discard the shape the CV
-                  has always had the moment one of them is touched.
-                */
-                <p className="text-[11px] text-gray-400">
-                  {t('classicHint')}
-                </p>
-              ) : (
-                <>
-                  <Slider
-                    label={t('waveDepth')}
-                    value={shape.amplitude}
-                    min={0}
-                    max={0.6}
-                    step={0.01}
-                    onChange={(amplitude) => setPortraitShape({ amplitude })}
-                  />
-                  <Slider
-                    label={t('waves')}
-                    value={shape.frequency}
-                    min={1}
-                    max={5}
-                    step={1}
-                    format={(v) => String(v)}
-                    onChange={(frequency) => setPortraitShape({ frequency })}
-                  />
-                  <Slider
-                    label={t('cornerRounding')}
-                    value={shape.rounding}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onChange={(rounding) => setPortraitShape({ rounding })}
-                  />
-                </>
-              )}
-            </fieldset>
           </div>
         </div>
 

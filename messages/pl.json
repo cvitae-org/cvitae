@@ -106,7 +106,6 @@
       "import": "Importuj CV z pliku",
       "translateGaps": "Przetłumacz braki z drugiej wersji językowej CV",
       "translateGapsTitle": "Uzupełnij braki w CV {target} na podstawie CV {source}",
-      "portrait": "Portret",
       "switchDocumentLanguage": "Przełącz dokument CV na język {language}"
     },
     "editor": {
@@ -192,11 +191,12 @@
       "addFirstLanguage": "Dodaj pierwszy język",
       "addLanguage": "Dodaj język",
       "remove": "Usuń",
-      "add": "Dodaj"
+      "add": "Dodaj",
+      "editPortrait": "Edytuj zdjęcie"
     },
     "portrait": {
       "title": "Portret",
-      "description": "Zdjęcie i kształt jego kadrowania. Wszystko pozostaje w tej przeglądarce.",
+      "description": "Twoje zdjęcie i sposób, w jaki układa się w kadrze. Wszystko pozostaje w tej przeglądarce.",
       "imageUnreadable": "Nie udało się odczytać tego obrazu.",
       "previewAlt": "Podgląd portretu",
       "chooseImage": "Wybierz obraz",
@@ -206,18 +206,6 @@
       "zoom": "Powiększenie",
       "horizontal": "Poziomo",
       "vertical": "Pionowo",
-      "shape": "Kształt",
-      "preset": {
-        "classic": "Klasyczny",
-        "wave": "Fala",
-        "arch": "Łuk",
-        "soft": "Łagodny",
-        "straight": "Prosty"
-      },
-      "classicHint": "Oryginalny, ręcznie narysowany kontur. Wybierz inny wariant, aby dostosować krzywą.",
-      "waveDepth": "Głębokość fali",
-      "waves": "Liczba fal",
-      "cornerRounding": "Zaokrąglenie rogu",
       "done": "Gotowe"
     },
     "pdf": {

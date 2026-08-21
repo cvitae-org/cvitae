@@ -11,6 +11,7 @@ import { CVTranslateModal } from "./CVTranslateModal";
 import { PortraitModal } from "./PortraitModal";
 import { usePortrait } from "../hooks/usePortrait";
 import { useCvDocument } from '../hooks/useCvDocument';
+import { PortraitEditorProvider } from '../contexts/PortraitEditorContext';
 import { atsFilename } from '../pdf/atsPdf';
 import { ReadinessPanel } from './ReadinessPanel';
 import {
@@ -89,7 +90,11 @@ function CVContentInner({ showControls = true }: CVContentProps) {
           style={{ width: `${A4_DIMENSIONS.width}px` }}
         >
           <CVLayout key={layoutKey} previewId="master">
-            <CVHeader />
+            {/* Only here: the tailored preview in Submitting renders the same
+                header, and a frozen variant has no portrait to change. */}
+            <PortraitEditorProvider onEdit={() => setIsPortraitOpen(true)}>
+              <CVHeader />
+            </PortraitEditorProvider>
             <CVExperience />
             <CVEducation />
             <CVCertificates />
@@ -157,19 +162,6 @@ function CVContentInner({ showControls = true }: CVContentProps) {
                   strokeWidth={2}
                   d="M4 5h8M8 3v2c0 3.5-1.6 6.1-4 8m2.5-5c1.2 2 2.8 3.6 5 4.8M13 19l3.5-9 3.5 9M14.2 16h4.6"
                 />
-              </svg>
-            </button>
-            <button
-              onClick={() => setIsPortraitOpen(true)}
-              title={t('portrait')}
-              aria-label={t('portrait')}
-              className="relative flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-500 shadow-sm transition-colors duration-200 hover:bg-gray-50 hover:text-gray-700"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M3 5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5z" />
-                <circle cx="12" cy="10" r="2.5" strokeWidth={2} />
-                <path strokeLinecap="round" strokeWidth={2} d="M6.5 19c1.2-2.6 3.2-3.9 5.5-3.9s4.3 1.3 5.5 3.9" />
               </svg>
             </button>
 

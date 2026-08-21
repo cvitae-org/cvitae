@@ -10,6 +10,16 @@ interface MaskedPortraitProps {
   className?: string;
   hoverSrc?: string;
   transitionDurationMs?: number;
+  /**
+   * Makes the portrait a way into the editor.
+   *
+   * Takes over the click entirely rather than sitting beside it: a single
+   * gesture cannot both swap the built-in pair and open a modal, and where the
+   * picture is editable, editing it is what clicking it should mean.
+   */
+  onActivate?: () => void;
+  /** Replaces `alt` on the control when it does something. */
+  actionLabel?: string;
   /** How the image sits inside the mask. See `applyMaskToCanvas`. */
   zoom?: number;
   offsetX?: number;
@@ -32,6 +42,8 @@ export function MaskedPortrait({
   zoom = 1,
   offsetX = 0,
   offsetY = 0,
+  onActivate,
+  actionLabel,
 }: MaskedPortraitProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hoverCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,30 +94,44 @@ export function MaskedPortrait({
     });
   }, [hoverSrc, maskSrc, zoom, offsetX, offsetY]);
 
+  const toggles = Boolean(hoverSrc) && !onActivate;
+  const interactive = Boolean(onActivate) || toggles;
+
+  const activate = () => {
+    if (onActivate) onActivate();
+    else if (toggles) setIsToggled((prev) => !prev);
+  };
+
   return (
     <div
-      className={`relative inline-block ${className}`}
-      onClick={() => hoverSrc && setIsToggled((prev) => !prev)}
+      // `cursor-pointer` only; nothing here may change the box, because the
+      // header is measured to paginate the sheet and a hover ring or a border
+      // would repaginate the document under the cursor.
+      className={`relative inline-block ${
+        onActivate ? "cursor-pointer" : ""
+      } ${className}`}
+      onClick={() => interactive && activate()}
       onKeyDown={(event) => {
-        if (!hoverSrc) return;
+        if (!interactive) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          setIsToggled((prev) => !prev);
+          activate();
         }
       }}
-      role={hoverSrc ? "button" : "img"}
-      aria-label={alt}
-      aria-pressed={hoverSrc ? isToggled : undefined}
-      tabIndex={hoverSrc ? 0 : undefined}
+      title={onActivate ? actionLabel : undefined}
+      role={interactive ? "button" : "img"}
+      aria-label={onActivate ? actionLabel ?? alt : alt}
+      aria-pressed={toggles ? isToggled : undefined}
+      tabIndex={interactive ? 0 : undefined}
     >
       <canvas
         ref={canvasRef}
         style={{
           ...baseStyle,
-          opacity: hoverSrc && isToggled ? 0 : 1,
+          opacity: toggles && isToggled ? 0 : 1,
         }}
       />
-      {hoverSrc && (
+      {toggles && (
         <canvas
           ref={hoverCanvasRef}
           style={{

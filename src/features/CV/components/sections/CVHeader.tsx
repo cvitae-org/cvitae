@@ -10,6 +10,7 @@ import { EmptySection } from "../editing/EmptySection";
 import { EntryControls } from "../editing/EntryControls";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { usePortrait } from "../../hooks/usePortrait";
+import { usePortraitEditor } from "../../contexts/PortraitEditorContext";
 import { backgroundScale, backgroundSvgUrl, portraitWidthRatio, shapeSvgUrl } from "../../portrait";
 import {
   addSkillGroup,
@@ -76,6 +77,7 @@ export function CVHeader() {
   const t = useTranslations('cv.editor');
   const { document, locale } = useCvDocument();
   const { portrait } = usePortrait();
+  const editPortrait = usePortraitEditor();
 
   return (
     <MeasuredItem id="cv-header" section="header" order={sectionOrder("header")}>
@@ -102,19 +104,28 @@ export function CVHeader() {
             >
               {/*
                 The mask is generated from the stored parameters rather than
-                fetched from `public/`, so changing the silhouette is a setting
-                instead of an asset edit. `classic` reproduces the original path
-                verbatim, which is what keeps this identical until someone
-                deliberately changes it.
+                fetched from `public/`, so the silhouette is a setting instead
+                of an asset edit. `classic` reproduces the original path
+                verbatim, which is what keeps this identical.
 
-                `hoverSrc` only applies to the built-in pair. An uploaded
-                portrait has no second image to toggle to, and inventing one
-                would mean a click doing nothing visible.
+                Where the CV is editable the picture opens the editor, which is
+                the only affordance it has — there is no button on it and no
+                overlay, because anything drawn over the portrait would be drawn
+                into the exported PDF too.
+
+                `hoverSrc` is what a click used to do: swap the built-in pair.
+                It survives only where the portrait is not editable, since one
+                click cannot mean two things, and on a frozen variant in
+                Submitting there is nothing to edit.
               */}
               <MaskedPortrait
                 src={portrait.image ?? "/me2.png"}
-                hoverSrc={portrait.image ? undefined : "/me.png"}
+                hoverSrc={
+                  editPortrait || portrait.image ? undefined : "/me.png"
+                }
                 alt={document.personal.name || documentT("sections.contact")}
+                onActivate={editPortrait ?? undefined}
+                actionLabel={t("editPortrait")}
                 maskSrc={shapeSvgUrl(portrait.shape)}
                 zoom={portrait.zoom}
                 offsetX={portrait.offsetX}
