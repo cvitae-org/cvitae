@@ -197,10 +197,17 @@ export function SubmissionDetail({
   const [copied, setCopied] = useState(false);
 
   /**
-   * Which sections the next regeneration may replace. Empty means all of them,
-   * which is what regenerating meant before there was a choice.
+   * Which sections the next generation may write.
+   *
+   * The summary alone by default — the paragraph beside the portrait is the
+   * part a vacancy actually changes the wording of, and the part a reader can
+   * check in one read. Rewriting the headline, the skill order and every bullet
+   * on a first press produces a document that has to be reviewed line by line
+   * before anyone can tell whether it is still true.
+   *
+   * Clearing the row is how to ask for everything, and the hint says so.
    */
-  const [sections, setSections] = useState<EvidenceSection[]>([]);
+  const [sections, setSections] = useState<EvidenceSection[]>(['summary']);
 
   const { offer, apply, cv } = submission;
   const display = (value: string) =>
@@ -461,7 +468,7 @@ export function SubmissionDetail({
           replace. Absent before the first generation, when there is nothing to
           keep, and hidden once the variant is sent and frozen.
         */}
-        {cv && !sent && (
+        {!sent && (
           <fieldset className="mt-3">
             <legend className="text-xs font-medium text-gray-700">
               {t('detail.regenerateSections')}
@@ -503,7 +510,7 @@ export function SubmissionDetail({
         <button
           type="button"
           onClick={() =>
-            onGenerateCv(submission, cv && sections.length > 0 ? sections : undefined)
+            onGenerateCv(submission, sections.length > 0 ? sections : undefined)
           }
           disabled={busy || sent}
           className={`mt-3 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 ${

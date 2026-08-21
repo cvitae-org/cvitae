@@ -21,11 +21,13 @@ import type {
   Submission
 } from '../types';
 import {
+  buildCvFactCatalog,
   buildEvidenceRequest,
   carryDecisions,
   createEvidenceVariant,
   EVIDENCE_SECTIONS,
   EvidenceValidationError,
+  identityProposal,
   mergeProposal,
   rebuildVariant,
   requiredChangeIds,
@@ -172,13 +174,12 @@ export const useSubmitting = () => {
             throw new Error('Unexpected evidence proposal response.');
           }
 
-          const partial =
-            submission.cv &&
+          const narrowed =
             sections &&
             sections.length > 0 &&
             sections.length < EVIDENCE_SECTIONS.length;
 
-          if (!partial) {
+          if (!narrowed) {
             setEvidenceCV(
               submission.id,
               createEvidenceVariant({
@@ -191,7 +192,36 @@ export const useSubmitting = () => {
             return;
           }
 
-          const current = submission.cv as NonNullable<Submission['cv']>;
+          /*
+           * With no variant yet there is nothing to keep, so the sections that
+           * were not asked for are kept from the CV itself: `identityProposal`
+           * is the document proposing every section unchanged, and merging onto
+           * it yields a first generation that touches only what was picked.
+           */
+          if (!submission.cv) {
+            setEvidenceCV(
+              submission.id,
+              createEvidenceVariant({
+                sourceCv,
+                sourceOffer: submission.offer,
+                language: submission.language,
+                response: {
+                  ...response,
+                  proposal: mergeProposal(
+                    identityProposal(
+                      sourceCv,
+                      buildCvFactCatalog(sourceCv, submission.language)
+                    ),
+                    response.proposal,
+                    sections
+                  )
+                }
+              })
+            );
+            return;
+          }
+
+          const current = submission.cv;
           const merged = mergeProposal(
             current.proposal,
             response.proposal,

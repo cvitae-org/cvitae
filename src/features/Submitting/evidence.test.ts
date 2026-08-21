@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   approveVariant,
-  carryDecisions,
-  mergeProposal,
   buildCvFactCatalog,
+  carryDecisions,
   createEvidenceVariant,
+  identityProposal,
+  mergeProposal,
   protectedFieldIssues,
   rebuildVariant,
   requiredChangeIds,
@@ -212,6 +213,44 @@ describe('snapshot-scoped evidence variants', () => {
     // The declined skills change stays declined; the regenerated summary is on.
     expect(carried).not.toContain('skills');
     expect(carried).toContain('summary:0');
+  });
+
+  /**
+   * The default first generation: the summary is rewritten for the vacancy and
+   * everything else is proposed exactly as the CV already has it.
+   */
+  it('leaves every unpicked section identical to the CV on a first generation', () => {
+    const source = cvFixture();
+    const catalog = buildCvFactCatalog(source, 'en');
+
+    const merged = mergeProposal(
+      identityProposal(source, catalog),
+      proposalFixture(),
+      ['summary']
+    );
+
+    const variant = createEvidenceVariant({
+      sourceCv: source,
+      sourceOffer: offerFixture(),
+      language: 'en',
+      response: {
+        version: 'evidence-v2',
+        proposal: merged,
+        provider: 'test',
+        model: 'test',
+        promptVersion: 'test',
+        generatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    });
+
+    // Only the paragraph moved.
+    expect(variant.output.role_description).not.toBe(source.role_description);
+    expect(variant.output.skills.role).toBe(source.skills.role);
+    expect(variant.output.skills.groups).toEqual(source.skills.groups);
+    expect(variant.output.experience).toEqual(source.experience);
+
+    // And it is still a variant that can be approved on its own terms.
+    expect(approveVariant(variant).reviewState).toBe('approved');
   });
 
   it('starts with every change applied, freezes approval, and resets it after editing', () => {

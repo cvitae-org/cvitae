@@ -692,9 +692,9 @@
       "blockerMessage": "Write or draft the message first.",
       "blockerDestination": "This offer has no address and no link, so there is nowhere to send it. Add an address above.",
       "pdfNotApproved": "the evidence variant is not approved",
-      "regenerateSections": "Regenerate only",
-      "regenerateAllHint": "Nothing picked: the whole proposal is replaced.",
-      "regenerateSomeHint": "Only the picked parts are replaced. Your decisions on the rest are kept.",
+      "regenerateSections": "Write only",
+      "regenerateAllHint": "Nothing picked: every section is written from scratch.",
+      "regenerateSomeHint": "Only the picked sections are written. The rest stay exactly as your CV has them.",
       "sections": {
         "headline": "Headline",
         "summary": "Summary",

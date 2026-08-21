@@ -586,6 +586,57 @@ export const proposalMaterializationIssues = (
  * in: `summary` is the paragraph beside the portrait, which is the one people
  * ask to redo most often and the one a whole regeneration used to take with it.
  */
+/**
+ * The CV proposing itself: every section cited to the fact it came from.
+ *
+ * The starting point for a generation that is only allowed to touch some
+ * sections. A proposal has to be whole — the schema says so and the validators
+ * assume it — so "leave the skills alone" cannot be expressed by omitting them;
+ * it has to be expressed as a proposal to keep each one exactly as written.
+ *
+ * Trivially evidence-backed, since each entry's text is its own evidence, and
+ * it materializes to a document identical to the source. Nothing here can
+ * introduce a claim, which is what makes it a safe floor to merge onto.
+ */
+export const identityProposal = (
+  source: CvDocument,
+  catalog: SanitizedCvCatalog
+): EvidenceCvProposal => {
+  const has = (id: string) => catalog.facts.some((fact) => fact.id === id);
+
+  return {
+    headline: {
+      text: source.skills.role,
+      evidenceIds: has('role:0') ? ['role:0'] : [],
+      requirementIds: []
+    },
+    summaryClaims: source.role_description.trim()
+      ? [
+          {
+            text: source.role_description,
+            evidenceIds: has('summary:0') ? ['summary:0'] : [],
+            requirementIds: []
+          }
+        ]
+      : [],
+    skills: catalog.facts
+      .filter((fact) => fact.kind === 'skill')
+      .map((fact) => ({ evidenceId: fact.id, requirementIds: [] })),
+    experience: source.experience.map((job, jobIndex) => ({
+      jobIndex,
+      bullets: job.highlights
+        .map((text, bulletIndex) => ({
+          text,
+          sourceEvidenceId: `experience:${jobIndex}:bullet:${bulletIndex}`,
+          evidenceIds: [`experience:${jobIndex}:bullet:${bulletIndex}`],
+          requirementIds: []
+        }))
+        .filter((bullet) => has(bullet.sourceEvidenceId))
+    })),
+    requirementMatches: []
+  };
+};
+
 export const EVIDENCE_SECTIONS = [
   'headline',
   'summary',
