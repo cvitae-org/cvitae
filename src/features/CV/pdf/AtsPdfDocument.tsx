@@ -7,7 +7,7 @@ import {
   Text,
   View
 } from '@react-pdf/renderer';
-import type { CvDocument, CvExperience } from '../document';
+import type { CvDocument } from '../document';
 import type { Locale } from '@/libs/i18n/config';
 
 const headings: Record<
@@ -87,7 +87,6 @@ const styles = StyleSheet.create({
   bullet: { width: 9 },
   bulletText: { flex: 1 },
   detail: { marginTop: 1 },
-  compact: { marginBottom: 3 }
 });
 
 const absoluteUrl = (value: string): string => {
@@ -119,12 +118,6 @@ const breakableUrl = (value: string): string =>
         : part.replace(/(.{24})/g, '$1\u200B')
     )
     .join('');
-
-export const isCompactExperience = (
-  experience: CvExperience,
-  index: number,
-  total: number
-): boolean => index >= 4 && total > 5 && experience.highlights.length <= 2;
 
 const dateRange = (
   started: string,
@@ -235,31 +228,39 @@ export function AtsPdfDocument({
 
         {document.experience.length > 0 && (
           <Section title={h.experience} keepWithFirst>
-            {document.experience.map((job, index) => {
-              const compact = isCompactExperience(job, index, document.experience.length);
-              return (
-                <View
-                  key={`${job.company}-${job.title}-${job.started}`}
-                  style={compact ? styles.compact : styles.entry}
-                  wrap={false}
-                >
-                  <View style={styles.entryHeader}>
-                    <Text style={styles.entryTitle}>{job.title}</Text>
-                    <Text style={styles.date}>
-                      {dateRange(job.started, job.finished, h.present)}
-                    </Text>
-                  </View>
-                  <Text style={styles.company}>{`${job.company} `}</Text>
-                  {!compact &&
-                    job.highlights.map((highlight, bulletIndex) => (
-                      <View key={`${bulletIndex}-${highlight}`} style={styles.bulletRow}>
-                        <Text style={styles.bullet}>•</Text>
-                        <Text style={styles.bulletText}>{highlight}</Text>
-                      </View>
-                    ))}
+            {/*
+              Every bullet, for every role.
+              
+              A rule here used to drop the bullets of the fifth role onward when
+              it had two or fewer of them, to keep an older job to a single
+              line. It was silent, and it took the same bullets out of
+              `atsExpectedText` — so a parser reading this file never saw them
+              either. That is the wrong trade for this export in particular: an
+              ATS does not care how many pages it reads, it matches on the words,
+              and the words being dropped were the user's own. Length is handled
+              where it belongs, by the preflight warning about a long document.
+            */}
+            {document.experience.map((job) => (
+              <View
+                key={`${job.company}-${job.title}-${job.started}`}
+                style={styles.entry}
+                wrap={false}
+              >
+                <View style={styles.entryHeader}>
+                  <Text style={styles.entryTitle}>{job.title}</Text>
+                  <Text style={styles.date}>
+                    {dateRange(job.started, job.finished, h.present)}
+                  </Text>
                 </View>
-              );
-            })}
+                <Text style={styles.company}>{`${job.company} `}</Text>
+                {job.highlights.map((highlight, bulletIndex) => (
+                  <View key={`${bulletIndex}-${highlight}`} style={styles.bulletRow}>
+                    <Text style={styles.bullet}>•</Text>
+                    <Text style={styles.bulletText}>{highlight}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
           </Section>
         )}
 
@@ -330,14 +331,12 @@ export const atsExpectedText = (
     hasSkills ? h.skills : '',
     ...document.skills.groups.flatMap((group) => [group.label, ...group.items]),
     document.experience.length ? h.experience : '',
-    ...document.experience.flatMap((job, index) => [
+    ...document.experience.flatMap((job) => [
       job.title,
       job.company,
       job.started,
       job.finished ?? h.present,
-      ...(isCompactExperience(job, index, document.experience.length)
-        ? []
-        : job.highlights)
+      ...job.highlights
     ]),
     document.education.length ? h.education : '',
     ...document.education.flatMap((item) => [
