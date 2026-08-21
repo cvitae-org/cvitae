@@ -211,6 +211,10 @@
         "soft": "Miękki",
         "straight": "Prosty"
       },
+      "waves": "Fale",
+      "waveDepth": "Głębokość",
+      "waveCount": "Liczba",
+      "cornerRounding": "Zaokrąglenie rogów",
       "done": "Gotowe"
     },
     "pdf": {

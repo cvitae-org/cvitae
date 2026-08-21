@@ -8,7 +8,9 @@ import { usePortrait } from "../hooks/usePortrait";
 import {
   backgroundScale,
   backgroundSvgUrl,
+  DEFAULT_WAVE_AMPLITUDE,
   downscaleImage,
+  hasWaves,
   portraitWidthRatio,
   PRESETS,
   SELECTABLE_PRESET_NAMES,
@@ -26,12 +28,11 @@ import {
  * an edit to the repository rather than to the CV. It is a setting now, and
  * this is where it is set.
  *
- * The silhouette is a choice between two named shapes, and no longer a set of
- * sliders. Depth, lobe count and corner rounding were three more controls beside
- * the one thing people actually come here to do, and they described a shape
- * nobody tunes twice. Picking `soft` or `straight` applies a preset wholesale;
- * the parameters behind them stay in the store, so a CV written when they were
- * adjustable still renders exactly as it was.
+ * The silhouette is two presets to start from and three independent controls to
+ * adjust. Independent is the point: the presets used to be the only way in, and
+ * `straight` removed the corner rounding along with the waves — two properties
+ * that have nothing to do with each other, bundled because they happened to
+ * share a name. Waves can now be switched off while the corners stay round.
  *
  * No model is involved in the image. "Make it fit" is a framing problem, and
  * framing is a crop: the reason a photograph sits badly in this mask is almost
@@ -99,6 +100,18 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
     return () => window.document.removeEventListener("keydown", onEscape);
   }, [isOpen, onClose]);
 
+  /**
+   * The depth to come back to when waves are switched on again.
+   *
+   * Held here rather than read off the shape, because switching them off is
+   * what writes zero over the value that would otherwise be remembered. Set
+   * from the toggle only — a ref updated during render is a value React is
+   * entitled to discard.
+   */
+  const [restoreAmplitude, setRestoreAmplitude] = useState(
+    DEFAULT_WAVE_AMPLITUDE
+  );
+
   const upload = useCallback(async (file: File | undefined) => {
     if (!file) return;
     setBusy(true);
@@ -119,6 +132,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
   if (!isOpen) return null;
 
   const { shape } = portrait;
+  const waves = hasWaves(shape);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -224,7 +238,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
               />
             </fieldset>
 
-            <fieldset>
+            <fieldset className="space-y-2">
               <legend className="mb-1 text-xs font-medium text-gray-700">
                 {t('shape')}
               </legend>
@@ -248,6 +262,61 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                   </button>
                 ))}
               </div>
+
+              <label className="flex items-center gap-2 pt-1 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={waves}
+                  // Off is amplitude zero. Turning it back on restores the depth
+                  // that was there before, so switching twice is not a way to
+                  // lose a setting — and falls back to a visible default when
+                  // the stored value is the zero we just wrote.
+                  onChange={(event) => {
+                    if (event.target.checked) {
+                      setPortraitShape({ amplitude: restoreAmplitude });
+                      return;
+                    }
+                    setRestoreAmplitude(shape.amplitude || DEFAULT_WAVE_AMPLITUDE);
+                    setPortraitShape({ amplitude: 0 });
+                  }}
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-[#65B7FF] focus:ring-[#65B7FF]"
+                />
+                {t('waves')}
+              </label>
+
+              {waves && (
+                <>
+                  <Slider
+                    label={t('waveDepth')}
+                    value={shape.amplitude}
+                    min={0.01}
+                    max={0.6}
+                    step={0.01}
+                    onChange={(amplitude) => setPortraitShape({ amplitude })}
+                  />
+                  <Slider
+                    label={t('waveCount')}
+                    value={shape.frequency}
+                    min={1}
+                    max={5}
+                    step={1}
+                    format={(value) => String(value)}
+                    onChange={(frequency) => setPortraitShape({ frequency })}
+                  />
+                </>
+              )}
+
+              {/* Outside the waves block on purpose: rounding is a property of
+                  the corners, not of the edge, and burying it under a toggle
+                  that removes the waves is what made the two inseparable. */}
+              <Slider
+                label={t('cornerRounding')}
+                value={shape.rounding}
+                min={0}
+                max={1}
+                step={0.01}
+                onChange={(rounding) => setPortraitShape({ rounding })}
+              />
             </fieldset>
           </div>
         </div>

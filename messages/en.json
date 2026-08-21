@@ -211,6 +211,10 @@
         "soft": "Soft",
         "straight": "Straight"
       },
+      "waves": "Waves",
+      "waveDepth": "Depth",
+      "waveCount": "Count",
+      "cornerRounding": "Corner rounding",
       "done": "Done"
     },
     "pdf": {

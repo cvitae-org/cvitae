@@ -316,18 +316,56 @@ export const setPortraitFraming = (
  * more, which is a WebP of a few tens of kilobytes, small enough that keeping
  * it in IndexedDB beside the CV is unremarkable.
  */
+/** The parameters a control can move, as opposed to the preset that names them. */
+const TUNABLE = ['amplitude', 'frequency', 'rounding'] as const;
+
 /**
- * Switches the silhouette.
+ * Changes the silhouette, by preset or by parameter.
  *
- * Takes a whole preset rather than individual parameters: the amplitude,
- * frequency and rounding sliders are no longer offered, so every change that
- * reaches here is one of the named shapes applied wholesale.
+ * The three parameters are independent of each other and always have been —
+ * only the presets bundled them, which is why `straight` removed the corner
+ * rounding along with the waves when the two have nothing to do with one
+ * another. A preset is a starting point now; the controls move one number at a
+ * time.
+ *
+ * `classic` is the exception, because it is a drawn curve with no parameters
+ * behind it: a slider moved against it changes the stored numbers and redraws
+ * nothing. The first adjustment therefore converts it to the generated shape,
+ * seeded from the numbers already stored — which are classic's own, and within
+ * a hundredth of what the drawn path traces, so the portrait barely moves.
  */
 export const setPortraitShape = (shape: Partial<PortraitShape>) =>
-  store.update((current) => ({
-    ...current,
-    shape: clampShape({ ...current.shape, ...shape })
-  }));
+  store.update((current) => {
+    const tuning = TUNABLE.some((key) => shape[key] !== undefined);
+    const preset =
+      tuning && current.shape.preset === 'classic' ? 'wave' : current.shape.preset;
+
+    return {
+      ...current,
+      shape: clampShape({ ...current.shape, preset, ...shape })
+    };
+  });
+
+/** Below this a wave is not a wave, it is a straight edge with rounding errors. */
+export const MIN_WAVE_AMPLITUDE = 0.01;
+
+/**
+ * What turning waves back on restores, when there is nothing to restore to.
+ *
+ * Annotated, because `PRESETS` is `as const` and the inferred literal type
+ * would make every value but this one unassignable to a state holding it.
+ */
+export const DEFAULT_WAVE_AMPLITUDE: number = PRESETS.soft.amplitude;
+
+/**
+ * Whether the edge waves at all.
+ *
+ * Derived rather than stored: "no waves" is amplitude zero and nothing else, so
+ * a separate boolean would be a second copy of the same fact — free to disagree
+ * with the number the mask is actually drawn from.
+ */
+export const hasWaves = (shape: PortraitShape): boolean =>
+  shape.amplitude >= MIN_WAVE_AMPLITUDE;
 
 export const downscaleImage = (file: File, maxSide = 640): Promise<string> =>
   new Promise((resolve, reject) => {
