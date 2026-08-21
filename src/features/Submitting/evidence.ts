@@ -267,7 +267,28 @@ export const validateEvidenceProposal = (
     });
   }
 
-  if (proposal.summaryClaims.length < 2 || proposal.summaryClaims.length > 3) {
+  /*
+   * Two or three sentences, unless the summary is the CV's own.
+   *
+   * The rule is about what a model may write: not a one-liner, not an essay.
+   * A proposal that restates the existing summary verbatim — which is what a
+   * generation narrowed to other sections produces — is not writing anything,
+   * and a CV whose summary happens to be one sentence long is not a fault this
+   * check should invent. Compared against the catalogue's own summary fact, so
+   * only an exact restatement is exempt.
+   */
+  const restated = proposal.summaryClaims
+    .map((claim) => claim.text.trim())
+    .filter(Boolean)
+    .join(' ');
+  const sourceSummary =
+    catalog.facts.find((fact) => fact.kind === 'summary')?.text.trim() ?? '';
+  const summaryUnchanged = restated !== '' && restated === sourceSummary;
+
+  if (
+    !summaryUnchanged &&
+    (proposal.summaryClaims.length < 2 || proposal.summaryClaims.length > 3)
+  ) {
     issues.push('Summary must contain two or three cited sentences.');
   }
   proposal.summaryClaims.forEach((claim, index) => {
@@ -587,6 +608,27 @@ export const proposalMaterializationIssues = (
  * ask to redo most often and the one a whole regeneration used to take with it.
  */
 /**
+ * The CV's summary as two or three sentences, for an identity proposal.
+ *
+ * Rejoining these with a single space must reproduce the paragraph, so the
+ * terminator stays attached and nothing is trimmed away — an identity claim
+ * that paraphrased its own source would be a change pretending not to be one.
+ * A tail beyond the third sentence is folded into it rather than dropped.
+ */
+const summarySentences = (summary: string): string[] => {
+  const text = summary.trim();
+  if (!text) return [];
+
+  const parts = text.match(/[^.!?]+[.!?]*\s*/g)?.map((part) => part.trim()) ?? [];
+  const sentences = parts.filter(Boolean);
+
+  if (sentences.length <= 1) return sentences;
+  if (sentences.length <= 3) return sentences;
+
+  return [sentences[0], sentences[1], sentences.slice(2).join(' ')];
+};
+
+/**
  * The CV proposing itself: every section cited to the fact it came from.
  *
  * The starting point for a generation that is only allowed to touch some
@@ -610,15 +652,18 @@ export const identityProposal = (
       evidenceIds: has('role:0') ? ['role:0'] : [],
       requirementIds: []
     },
-    summaryClaims: source.role_description.trim()
-      ? [
-          {
-            text: source.role_description,
-            evidenceIds: has('summary:0') ? ['summary:0'] : [],
-            requirementIds: []
-          }
-        ]
-      : [],
+    /*
+     * Split into sentences, because a proposal must carry two or three summary
+     * claims and the CV carries one paragraph. Splitting keeps the wording
+     * exactly — the claims rejoin, on the space they were split at, into the
+     * summary that was already there — while satisfying a rule written for a
+     * model's output and applied to every proposal alike.
+     */
+    summaryClaims: summarySentences(source.role_description).map((text) => ({
+      text,
+      evidenceIds: has('summary:0') ? ['summary:0'] : [],
+      requirementIds: []
+    })),
     skills: catalog.facts
       .filter((fact) => fact.kind === 'skill')
       .map((fact) => ({ evidenceId: fact.id, requirementIds: [] })),
@@ -708,24 +753,89 @@ export const carryDecisions = (
   );
 };
 
+/**
+ * The skills a proposal selects, in the order it selects them.
+ *
+ * Read from the proposal rather than from `variant.output`, because the output
+ * reflects the decisions already made: a declined skills change materializes to
+ * the source list, which would make the change look like no change and remove
+ * the card that is the only way to put it back.
+ */
+const proposedSkillList = (
+  proposal: EvidenceCvProposal,
+  catalog: SanitizedCvCatalog
+): string[] => {
+  const facts = factMap(catalog);
+  const groups = new Map<number, string[]>();
+
+  for (const selected of proposal.skills) {
+    const fact = facts.get(selected.evidenceId);
+    if (!fact || fact.kind !== 'skill' || fact.groupIndex === undefined) continue;
+    const group = groups.get(fact.groupIndex) ?? [];
+    group.push(fact.text);
+    groups.set(fact.groupIndex, group);
+  }
+
+  return [...groups.values()].flat();
+};
+
+const sameText = (left: string, right: string): boolean =>
+  left.trim() === right.trim();
+
+/**
+ * The changes a proposal actually makes, as decision ids.
+ *
+ * Only differences count. A proposal may restate a section exactly as the CV
+ * has it — that is what every section outside a narrowed generation does, and
+ * what a model does when it decides the original was already right. Listing
+ * those produced a review panel full of cards whose before and after were the
+ * same text, which reads as "it regenerated everything" and buries the two
+ * lines that did change.
+ *
+ * Every comparison is proposal against source, never output against source: the
+ * output already reflects the decisions, so a declined change would compare
+ * equal, drop off this list, and take with it the only control that could put
+ * it back.
+ */
 export const requiredChangeIds = (variant: EvidenceCvVariant): string[] => {
   const result: string[] = [];
-  if (variant.proposal.headline.text.trim() !== variant.source.cv.skills.role.trim()) {
+  const source = variant.source.cv;
+
+  if (!sameText(variant.proposal.headline.text, source.skills.role)) {
     result.push('headline');
   }
-  variant.proposal.summaryClaims.forEach((_, index) => result.push(`summary:${index}`));
-  result.push('skills');
 
-  const catalog = buildCvFactCatalog(variant.source.cv, variant.meta.language);
+  const catalog = buildCvFactCatalog(source, variant.meta.language);
+  const facts = factMap(catalog);
+
+  variant.proposal.summaryClaims.forEach((claim, index) => {
+    // Only the first claim replaces anything; the rest are additions, and an
+    // addition is a change unless it is empty.
+    const replaced = index === 0 ? source.role_description : '';
+    if (!sameText(claim.text, replaced)) result.push(`summary:${index}`);
+  });
+
+  if (
+    !sameText(
+      proposedSkillList(variant.proposal, catalog).join(', '),
+      source.skills.groups.flatMap((group) => group.items).join(', ')
+    )
+  ) {
+    result.push('skills');
+  }
+
   variant.proposal.experience.forEach((entry) => {
     const selected = entry.bullets.map((bullet) => bullet.sourceEvidenceId);
     if (stableSerialize(selected) !== stableSerialize(sourceOrderForJob(catalog, entry.jobIndex))) {
       result.push(`experience:${entry.jobIndex}:selection`);
     }
-    entry.bullets.forEach((bullet) =>
-      result.push(`experience:${entry.jobIndex}:${bullet.sourceEvidenceId}`)
-    );
+    entry.bullets.forEach((bullet) => {
+      if (!sameText(bullet.text, facts.get(bullet.sourceEvidenceId)?.text ?? '')) {
+        result.push(`experience:${entry.jobIndex}:${bullet.sourceEvidenceId}`);
+      }
+    });
   });
+
   return [...new Set(result)];
 };
 
@@ -914,11 +1024,15 @@ export const buildVariantChanges = (variant: EvidenceCvVariant): EvidenceChange[
     })
   );
 
+  const catalogForSkills = buildCvFactCatalog(
+    variant.source.cv,
+    variant.meta.language
+  );
   changes.push({
     id: 'skills',
     labelKey: 'skills',
     before: variant.source.cv.skills.groups.flatMap((group) => group.items).join(', '),
-    after: variant.output.skills.groups.flatMap((group) => group.items).join(', '),
+    after: proposedSkillList(variant.proposal, catalogForSkills).join(', '),
     evidence: evidenceText(
       variant,
       variant.proposal.skills.map((skill) => skill.evidenceId)
@@ -969,7 +1083,16 @@ export const buildVariantChanges = (variant: EvidenceCvVariant): EvidenceChange[
       });
     });
   });
-  return changes;
+
+  /*
+   * A card whose before and after are the same text is not a change, and it is
+   * the bulk of what a narrowed generation produces: every section that was not
+   * picked is proposed exactly as the CV already has it. Rendering those made
+   * the panel look like it had rewritten the whole document. Filtered here
+   * rather than at each push so this cannot drift from `requiredChangeIds`,
+   * which applies the same rule to decide what needs deciding.
+   */
+  return changes.filter((change) => !sameText(change.before, change.after));
 };
 
 export const editProposalText = (

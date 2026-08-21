@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   approveVariant,
   buildCvFactCatalog,
+  buildVariantChanges,
   carryDecisions,
   createEvidenceVariant,
   identityProposal,
@@ -251,6 +252,55 @@ describe('snapshot-scoped evidence variants', () => {
 
     // And it is still a variant that can be approved on its own terms.
     expect(approveVariant(variant).reviewState).toBe('approved');
+  });
+
+  /**
+   * Reported: picking Summary alone still filled the review panel with cards
+   * for skills and every bullet. The generation was right — those sections were
+   * proposed unchanged — but a card whose before and after are the same text
+   * reads as a rewrite, and there were enough of them to bury the two that were
+   * real.
+   */
+  it('reviews nothing for a section that was proposed unchanged', () => {
+    const source = cvFixture();
+    const merged = mergeProposal(
+      identityProposal(source, buildCvFactCatalog(source, 'en')),
+      proposalFixture(),
+      ['summary']
+    );
+
+    const variant = createEvidenceVariant({
+      sourceCv: source,
+      sourceOffer: offerFixture(),
+      language: 'en',
+      response: {
+        version: 'evidence-v2',
+        proposal: merged,
+        provider: 'test',
+        model: 'test',
+        promptVersion: 'test',
+        generatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    });
+
+    const ids = buildVariantChanges(variant).map((change) => change.id);
+    expect(ids).toEqual(['summary:0', 'summary:1']);
+    expect(requiredChangeIds(variant)).toEqual(ids);
+  });
+
+  /** A declined change must keep its card, or there is no way to reinstate it. */
+  it('keeps the card for a change that has been declined', () => {
+    const variant = createEvidenceVariant({
+      sourceCv: cvFixture(),
+      sourceOffer: offerFixture(),
+      language: 'en',
+      response: response()
+    });
+
+    const declined = rebuildVariant(variant, variant.proposal, []);
+    expect(buildVariantChanges(declined).map((change) => change.id)).toEqual(
+      buildVariantChanges(variant).map((change) => change.id)
+    );
   });
 
   it('starts with every change applied, freezes approval, and resets it after editing', () => {
