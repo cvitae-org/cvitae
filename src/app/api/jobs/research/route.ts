@@ -3,7 +3,11 @@ import { resolveOffer } from '@/libs/jobs/resolveOffer';
 import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import type { BoardOffer } from '@/libs/jobs/scraperClient';
 import { analyzeOffer, OfferAnalysisError } from '@/libs/jobs/analyzeOffer';
-import { runCapability, toRuntimeModel } from '@/libs/runtime/client';
+import {
+  carriesClientKey,
+  runCapability,
+  toRuntimeModel
+} from '@/libs/runtime/client';
 import {
   normalizeOfferText,
   withNormalizedRequirements
@@ -216,7 +220,18 @@ export async function POST(req: Request) {
     // implementation. The runtime therefore receives the same retained text
     // as the in-process fallback rather than fetching a second, potentially
     // changed copy of the vacancy.
-    const delegated = await runCapability<Record<string, unknown>>(
+    /*
+     * A request carrying the user's own key is analysed here rather than in the
+     * runtime, which cannot spend it — see `carriesClientKey`. The in-process
+     * pipeline below is the same five agents with the same prompts, so this
+     * changes which process runs the analysis and nothing about the result.
+     */
+    const delegated = carriesClientKey(override)
+      ? ({
+          status: 'unavailable',
+          detail: 'The request carries its own API key, which only this process can use.'
+        } as const)
+      : await runCapability<Record<string, unknown>>(
       'analyze_offer',
       {
         offerText: text,

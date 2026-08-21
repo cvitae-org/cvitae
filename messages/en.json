@@ -767,6 +767,7 @@
     "unknown": "Something went wrong. Please try again.",
     "providerFailed": "The selected AI provider did not respond.",
     "providerConfig": "The AI provider is not configured correctly.",
+    "clientKeyNotDelegable": "This step runs in cvitae-agent-runtime, which uses the server's own credentials and cannot use the key you entered. Remove your API key in Settings, or set the key on the server.",
     "invalidRequest": "The request could not be processed.",
     "ai": {
       "catalogueUnavailable": "The model list could not be read from the provider."

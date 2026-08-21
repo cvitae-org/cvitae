@@ -767,6 +767,7 @@
     "unknown": "Wystąpił błąd. Spróbuj ponownie.",
     "providerFailed": "Wybrany dostawca AI nie odpowiedział.",
     "providerConfig": "Dostawca AI nie jest poprawnie skonfigurowany.",
+    "clientKeyNotDelegable": "Ten krok wykonuje cvitae-agent-runtime, który korzysta z własnych poświadczeń serwera i nie może użyć wpisanego przez Ciebie klucza. Usuń swój klucz API w Ustawieniach albo ustaw klucz na serwerze.",
     "invalidRequest": "Nie udało się przetworzyć żądania.",
     "ai": {
       "catalogueUnavailable": "Nie udało się odczytać listy modeli od dostawcy."

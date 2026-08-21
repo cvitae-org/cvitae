@@ -1,4 +1,8 @@
-import { runCapability, toRuntimeModel } from '@/libs/runtime/client';
+import {
+  carriesClientKey,
+  runCapability,
+  toRuntimeModel
+} from '@/libs/runtime/client';
 import { apiError } from '@/libs/i18n/errors';
 
 /**
@@ -111,6 +115,20 @@ export async function POST(req: Request) {
   // the bytes I attached".
   const budget =
     typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
+
+  /*
+   * The runtime resolves credentials from its own environment, and this
+   * capability has no in-process fallback — so a request holding the user's own
+   * key cannot be served at all. Said plainly here, because the alternative is
+   * the runtime's own "Missing OPENAI_API_KEY": an env var the user never set,
+   * named by a process they have no reason to know exists.
+   */
+  if (carriesClientKey(ai)) {
+    return Response.json(
+      { error: apiError('clientKeyNotDelegable'), reason: 'client_key' },
+      { status: 400 }
+    );
+  }
 
   const outcome = await runCapability(
     'extract_cv',

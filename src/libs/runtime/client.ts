@@ -86,7 +86,28 @@ type SettingsOverride = {
   modelId?: unknown;
   extractionModelId?: unknown;
   baseURL?: unknown;
+  apiKey?: unknown;
 };
+
+/**
+ * Whether the request carries a credential this process cannot delegate.
+ *
+ * A key entered in Settings reaches cvitae and stops there. The runtime is a
+ * separate process with its own `.env` and its own provider resolution, and it
+ * reads credentials from its environment only — there is no field in the run
+ * envelope for one, and inventing a way to post someone's API key between two
+ * processes is not a thing to do quietly.
+ *
+ * So a request holding a user's own key must not be delegated. Without this
+ * check the symptom is a Settings page that tests green — that test runs
+ * against cvitae's own provider path, which does hold the key — followed by
+ * every analysis failing with `Missing OPENAI_API_KEY` raised by a process the
+ * user has no reason to know exists.
+ */
+export const carriesClientKey = (
+  override: SettingsOverride | undefined
+): boolean =>
+  typeof override?.apiKey === 'string' && override.apiKey.trim() !== '';
 
 const text = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;

@@ -1,6 +1,10 @@
 import { AiConfigError, resolveProviderId } from '@/libs/ai/providers';
 import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
-import { runBatchCapability, toRuntimeModel } from '@/libs/runtime/client';
+import {
+  carriesClientKey,
+  runBatchCapability,
+  toRuntimeModel
+} from '@/libs/runtime/client';
 import { sseFrame } from '@/libs/runtime/sse';
 import { withNormalizedRequirements } from '@/features/JobResearch/requirements';
 import { apiError } from '@/libs/i18n/errors';
@@ -56,6 +60,19 @@ export async function POST(req: Request) {
   } catch {
     return Response.json(
       { error: apiError('invalidRequest') },
+      { status: 400 }
+    );
+  }
+
+  /*
+   * Batching is runtime-only by design — there is nothing here to fall back to —
+   * and the runtime spends its own credentials. A request holding the user's key
+   * therefore cannot be served, and saying so beats the runtime's own
+   * "Missing OPENAI_API_KEY" for an env var the user never set.
+   */
+  if (carriesClientKey(body.ai as Record<string, unknown> | undefined)) {
+    return Response.json(
+      { error: apiError('clientKeyNotDelegable'), reason: 'client_key' },
       { status: 400 }
     );
   }
