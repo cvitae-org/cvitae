@@ -1,19 +1,25 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages } from "next-intl/server";
+import { getMessages, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/libs/i18n/routing";
 import "../globals.scss";
 
-export const metadata: Metadata = {
-  title: "Dominik Beń — CV",
-  description:
-    "Interactive CV of Dominik Beń, Frontend Developer specializing in React, Next.js, and modern web technologies",
-  icons: {
-    icon: [{ url: "/favicon.ico" }],
-  },
-};
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'metadata' });
+
+  return {
+    title: t('siteTitle'),
+    description: t('siteDescription'),
+    icons: { icon: [{ url: '/favicon.ico' }] }
+  };
+}
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));

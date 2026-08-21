@@ -1,6 +1,9 @@
 export type PdfPreflightIssue = {
   code: string;
   message: string;
+  values?: Record<string, string | number>;
+  /** Raw parser/provider detail, shown only in the optional technical panel. */
+  detail?: string;
   severity: 'block' | 'warning';
 };
 
@@ -146,17 +149,28 @@ export async function preflightPdf(
   options: PdfPreflightOptions
 ): Promise<PdfPreflightResult> {
   const issues: PdfPreflightIssue[] = [];
-  const block = (code: string, message: string) =>
-    issues.push({ code, message, severity: 'block' });
-  const warn = (code: string, message: string) =>
-    issues.push({ code, message, severity: 'warning' });
+  const block = (
+    code: string,
+    message: string,
+    values?: Record<string, string | number>,
+    detail?: string
+  ) => issues.push({ code, message, values, detail, severity: 'block' });
+  const warn = (
+    code: string,
+    message: string,
+    values?: Record<string, string | number>
+  ) => issues.push({ code, message, values, severity: 'warning' });
   const ceiling = options.compatibilityCeiling ?? 2_500_000;
 
   if (blob.size === 0) block('empty-file', 'The generated PDF is empty.');
   if (blob.size > ceiling) {
     block(
       'file-too-large',
-      `The PDF is ${(blob.size / 1_000_000).toFixed(2)} MB; the compatibility ceiling is ${(ceiling / 1_000_000).toFixed(1)} MB.`
+      `The PDF is ${(blob.size / 1_000_000).toFixed(2)} MB; the compatibility ceiling is ${(ceiling / 1_000_000).toFixed(1)} MB.`,
+      {
+        size: (blob.size / 1_000_000).toFixed(2),
+        ceiling: (ceiling / 1_000_000).toFixed(1)
+      }
     );
   } else if (blob.size > 1_000_000) {
     warn('file-size', 'The PDF is above the practical 1 MB target.');
@@ -187,7 +201,9 @@ export async function preflightPdf(
         Math.abs(viewport.width - 595.28) > 2 ||
         Math.abs(viewport.height - 841.89) > 2
       ) {
-        block('page-size', `Page ${pageNumber} is not A4 portrait.`);
+        block('page-size', `Page ${pageNumber} is not A4 portrait.`, {
+          page: pageNumber
+        });
       }
 
       const content = await page.getTextContent();
@@ -211,7 +227,9 @@ export async function preflightPdf(
   } catch (error) {
     block(
       'corrupt',
-      `PDF.js could not parse the generated file: ${error instanceof Error ? error.message : 'unknown error'}`
+      `PDF.js could not parse the generated file: ${error instanceof Error ? error.message : 'unknown error'}`,
+      undefined,
+      error instanceof Error ? error.message : 'unknown error'
     );
   }
 
@@ -241,7 +259,11 @@ export async function preflightPdf(
       'text-recovery',
       `Only ${(recovery * 100).toFixed(1)}% of meaningful tokens were recovered.${
         preview ? ` Unrecovered: ${preview}.` : ''
-      }`
+      }`,
+      {
+        recovery: (recovery * 100).toFixed(1),
+        missing: preview || '—'
+      }
     );
   }
   if (text.includes('\uFFFD')) {
@@ -264,7 +286,9 @@ export async function preflightPdf(
     options.language &&
     !binaryText.includes(`/Lang (${options.language})`)
   ) {
-    block('language-metadata', `The PDF language metadata is not ${options.language}.`);
+    block('language-metadata', `The PDF language metadata is not ${options.language}.`, {
+      language: options.language
+    });
   }
 
   // Text layers may split a heading into several positioned runs ("EDU CATION")
@@ -289,7 +313,9 @@ export async function preflightPdf(
       previous + 1
     );
     if (position < 0) {
-      block('heading', `The heading "${heading}" is missing from extracted text.`);
+      block('heading', `The heading "${heading}" is missing from extracted text.`, {
+        heading
+      });
     }
     previous = Math.max(previous, position);
   });
@@ -298,14 +324,17 @@ export async function preflightPdf(
   const normalizedFound = new Set(foundLinks.map(normalizedLink));
   options.expectedLinks.filter(Boolean).forEach((link) => {
     if (!normalizedFound.has(normalizedLink(link))) {
-      block('link', `The PDF is missing the link annotation for ${link}.`);
+      block('link', `The PDF is missing the link annotation for ${link}.`, {
+        link
+      });
     }
   });
 
   if (pageCount > 2) {
     warn(
       'page-count',
-      `The ${options.outputLabel ?? 'ATS PDF'} is ${pageCount} pages; review density and relevance.`
+      `The ${options.outputLabel ?? 'ATS PDF'} is ${pageCount} pages; review density and relevance.`,
+      { output: options.outputLabel ?? 'ATS PDF', count: pageCount }
     );
   }
 

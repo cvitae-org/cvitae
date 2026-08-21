@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useTranslations } from 'next-intl';
 import { MaskedPortrait } from "./common/MaskedPortrait";
 import { MaskedBackground } from "./common/MaskedBackground";
 import { usePortrait } from "../hooks/usePortrait";
@@ -76,6 +77,8 @@ const Slider = ({
 );
 
 export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
+  const t = useTranslations('cv.portrait');
+  const commonT = useTranslations('common');
   const { portrait } = usePortrait();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -100,7 +103,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
       // the path of every page load, which is what the shipped assets do today.
       setPortraitImage(await downscaleImage(file));
     } catch (problem) {
-      setError(problem instanceof Error ? problem.message : "That image could not be read.");
+      setError(problem instanceof Error ? problem.message : '');
     } finally {
       setBusy(false);
     }
@@ -115,16 +118,15 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
       <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Portrait</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('title')}</h2>
             <p className="mt-1 text-xs text-gray-500">
-              The photograph and the shape it is cut to. Everything here stays in
-              this browser.
+              {t('description')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={commonT('close')}
             className="rounded px-2 py-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
           >
             ✕
@@ -143,7 +145,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
             >
               <MaskedPortrait
                 src={portrait.image ?? "/me2.png"}
-                alt="Portrait preview"
+                alt={t('previewAlt')}
                 maskSrc={shapeSvgUrl(shape)}
                 zoom={portrait.zoom}
                 offsetX={portrait.offsetX}
@@ -151,7 +153,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
               />
             </MaskedBackground>
             <label className="w-full">
-              <span className="sr-only">Choose an image</span>
+              <span className="sr-only">{t('chooseImage')}</span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -166,18 +168,30 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                 onClick={() => setPortraitImage(null)}
                 className="text-[11px] text-gray-500 underline underline-offset-2 hover:text-gray-700"
               >
-                Use the built-in photo
+                {t('useBuiltIn')}
               </button>
             )}
-            {busy && <p className="text-[11px] text-gray-400">Resizing…</p>}
-            {error && <p className="text-[11px] text-red-600">{error}</p>}
+            {busy && <p className="text-[11px] text-gray-400">{t('resizing')}</p>}
+            {error !== null && (
+              <div className="text-[11px] text-red-600">
+                <p>{t('imageUnreadable')}</p>
+                {error && (
+                  <details className="mt-1 text-[10px] text-red-500/80">
+                    <summary className="cursor-pointer">
+                      {commonT('technicalDetails')}
+                    </summary>
+                    <p className="mt-1 break-words font-mono">{error}</p>
+                  </details>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-5">
             <fieldset className="space-y-2">
-              <legend className="mb-1 text-xs font-medium text-gray-700">Framing</legend>
+              <legend className="mb-1 text-xs font-medium text-gray-700">{t('framing')}</legend>
               <Slider
-                label="Zoom"
+                label={t('zoom')}
                 value={portrait.zoom}
                 min={1}
                 max={3}
@@ -186,7 +200,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                 onChange={(zoom) => setPortraitFraming({ zoom })}
               />
               <Slider
-                label="Horizontal"
+                label={t('horizontal')}
                 value={portrait.offsetX}
                 min={-1}
                 max={1}
@@ -194,7 +208,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                 onChange={(offsetX) => setPortraitFraming({ offsetX })}
               />
               <Slider
-                label="Vertical"
+                label={t('vertical')}
                 value={portrait.offsetY}
                 min={-1}
                 max={1}
@@ -204,7 +218,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
             </fieldset>
 
             <fieldset className="space-y-2">
-              <legend className="mb-1 text-xs font-medium text-gray-700">Shape</legend>
+              <legend className="mb-1 text-xs font-medium text-gray-700">{t('shape')}</legend>
               <div className="flex flex-wrap gap-1.5">
                 {PRESET_NAMES.map((name: PresetName) => (
                   <button
@@ -217,7 +231,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                         : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                     }`}
                   >
-                    {name}
+                    {t(`preset.${name}`)}
                   </button>
                 ))}
               </div>
@@ -230,13 +244,12 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                   has always had the moment one of them is touched.
                 */
                 <p className="text-[11px] text-gray-400">
-                  The original hand-drawn outline. Pick another preset to adjust
-                  the curve.
+                  {t('classicHint')}
                 </p>
               ) : (
                 <>
                   <Slider
-                    label="Wave depth"
+                    label={t('waveDepth')}
                     value={shape.amplitude}
                     min={0}
                     max={0.6}
@@ -244,7 +257,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                     onChange={(amplitude) => setPortraitShape({ amplitude })}
                   />
                   <Slider
-                    label="Waves"
+                    label={t('waves')}
                     value={shape.frequency}
                     min={1}
                     max={5}
@@ -253,7 +266,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
                     onChange={(frequency) => setPortraitShape({ frequency })}
                   />
                   <Slider
-                    label="Corner rounding"
+                    label={t('cornerRounding')}
                     value={shape.rounding}
                     min={0}
                     max={1}
@@ -272,7 +285,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
             onClick={onClose}
             className="rounded bg-[#65B7FF] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#529ED5]"
           >
-            Done
+            {t('done')}
           </button>
         </div>
       </div>

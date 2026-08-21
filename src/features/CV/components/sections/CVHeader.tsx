@@ -22,6 +22,7 @@ import {
   setSkills,
 } from "../../store";
 import { sectionOrder } from "../../order";
+import { useCvDocumentTranslations } from '../../hooks/useCvDocumentTranslations';
 
 /**
  * The skills strip, as however many rows the CV has.
@@ -71,7 +72,8 @@ const linkFields = [
 ] as const;
 
 export function CVHeader() {
-  const t = useTranslations("cv");
+  const documentT = useCvDocumentTranslations();
+  const t = useTranslations('cv.editor');
   const { document, locale } = useCvDocument();
   const { portrait } = usePortrait();
 
@@ -112,7 +114,7 @@ export function CVHeader() {
               <MaskedPortrait
                 src={portrait.image ?? "/me2.png"}
                 hoverSrc={portrait.image ? undefined : "/me.png"}
-                alt={document.personal.name || t("sections.contact")}
+                alt={document.personal.name || documentT("sections.contact")}
                 maskSrc={shapeSvgUrl(portrait.shape)}
                 zoom={portrait.zoom}
                 offsetX={portrait.offsetX}
@@ -127,16 +129,16 @@ export function CVHeader() {
                 as="h1"
                 value={document.personal.name}
                 onCommit={(value) => setPersonal(locale, { name: value })}
-                placeholder="Your name"
-                ariaLabel="Full name"
+                placeholder={t('yourName')}
+                ariaLabel={t('fullName')}
                 className="text-2xl sm:text-3xl md:text-3xl font-bold text-gray-900 font-cv leading-tight"
               />
               <EditableText
                 as="h2"
                 value={document.skills.role}
                 onCommit={(value) => setSkills(locale, { role: value })}
-                placeholder="Your role"
-                ariaLabel="Professional title"
+                placeholder={t('yourRole')}
+                ariaLabel={t('professionalTitle')}
                 className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 tracking-[0.16em] font-cv"
               />
             </div>
@@ -145,8 +147,8 @@ export function CVHeader() {
               <EditableText
                 value={document.personal.email}
                 onCommit={(value) => setPersonal(locale, { email: value })}
-                placeholder="you@example.com"
-                ariaLabel="Email address"
+                placeholder={t('emailPlaceholder')}
+                ariaLabel={t('emailAddress')}
                 pdfLink={
                   document.personal.email
                     ? `mailto:${document.personal.email}`
@@ -158,8 +160,8 @@ export function CVHeader() {
               <EditableText
                 value={document.personal.phone}
                 onCommit={(value) => setPersonal(locale, { phone: value })}
-                placeholder="Phone number"
-                ariaLabel="Phone number"
+                placeholder={t('phoneNumber')}
+                ariaLabel={t('phoneNumber')}
                 pdfLink={
                   document.personal.phone
                     ? `tel:${document.personal.phone.replace(/[^+\d]/g, '')}`
@@ -170,8 +172,8 @@ export function CVHeader() {
               <EditableText
                 value={document.personal.location}
                 onCommit={(value) => setPersonal(locale, { location: value })}
-                placeholder="City, Country"
-                ariaLabel="Location"
+                placeholder={t('locationPlaceholder')}
+                ariaLabel={t('location')}
               />
             </div>
 
@@ -180,8 +182,8 @@ export function CVHeader() {
               multiline
               value={document.role_description}
               onCommit={(value) => setRoleDescription(locale, value)}
-              placeholder="A short professional summary — what you do, and what you are good at."
-              ariaLabel="Professional summary"
+              placeholder={t('summaryPlaceholder')}
+              ariaLabel={t('professionalSummary')}
               className="text-[11px] pr-4 sm:text-xs md:text-sm text-gray-700 italic leading-relaxed font-cv max-w-xl mx-auto md:mx-0"
             />
 
@@ -193,7 +195,7 @@ export function CVHeader() {
                     value={document.personal.links[field.key] ?? ""}
                     onCommit={(value) => setLink(locale, field.key, value)}
                     placeholder={field.placeholder}
-                    ariaLabel={`${field.key} link`}
+                    ariaLabel={t('linkAria', { name: field.key })}
                     pdfLink={document.personal.links[field.key]}
                     className="hover:text-sky-700 transition-colors underline underline-offset-2"
                   />
@@ -229,9 +231,9 @@ export function CVHeader() {
         <div className="group/skills relative bg-white px-4 py-3">
           {document.skills.groups.length === 0 ? (
             <EmptySection
-              hint="Languages — Javascript, Typescript"
+              hint={t('skillsHint')}
               onCreate={() => addSkillGroup(locale)}
-              label="Add the first skill group"
+              label={t('addFirstSkillGroup')}
             />
           ) : (
             <div className="grid grid-cols-[fit-content(11rem)_1fr] items-baseline gap-x-3 gap-y-1.5">
@@ -242,8 +244,8 @@ export function CVHeader() {
                     onCommit={(value) =>
                       setSkillGroup(locale, index, { label: value })
                     }
-                    placeholder="Group"
-                    ariaLabel={`Skill group ${index + 1} heading`}
+                    placeholder={t('group')}
+                    ariaLabel={t('skillGroupLabel', { number: index + 1 })}
                     // Stored as typed and shown in capitals, so the heading a
                     // reader sees is the strip's own style rather than a demand
                     // that whoever types "Styling & Design" holds shift.
@@ -269,8 +271,8 @@ export function CVHeader() {
                       onCommit={(value) =>
                         setSkillGroup(locale, index, { items: toItems(value) })
                       }
-                      placeholder="Add skills, separated by commas"
-                      ariaLabel={`${group.label || `Skill group ${index + 1}`} skills`}
+                      placeholder={t('skillsPlaceholder')}
+                      ariaLabel={t('skillGroupItems', { number: index + 1 })}
                     />
                     {/*
                       Out of the flow, for the reason the bullet controls are:
@@ -290,8 +292,10 @@ export function CVHeader() {
                         type="button"
                         onClick={() => moveSkillGroup(locale, index, index - 1)}
                         disabled={index === 0}
-                        aria-label={`Move ${group.label || "this group"} up`}
-                        title="Move up"
+                        aria-label={t('moveGroupUp', {
+                          name: group.label || t('thisGroup')
+                        })}
+                        title={t('moveUp')}
                         className={controlButton}
                       >
                         ↑
@@ -300,8 +304,10 @@ export function CVHeader() {
                         type="button"
                         onClick={() => moveSkillGroup(locale, index, index + 1)}
                         disabled={index === document.skills.groups.length - 1}
-                        aria-label={`Move ${group.label || "this group"} down`}
-                        title="Move down"
+                        aria-label={t('moveGroupDown', {
+                          name: group.label || t('thisGroup')
+                        })}
+                        title={t('moveDown')}
                         className={controlButton}
                       >
                         ↓
@@ -309,11 +315,13 @@ export function CVHeader() {
                       <button
                         type="button"
                         onClick={() => removeSkillGroup(locale, index)}
-                        aria-label={`Remove ${group.label || "this group"}`}
-                        title="Remove this group"
+                        aria-label={t('removeGroupNamed', {
+                          name: group.label || t('thisGroup')
+                        })}
+                        title={t('removeGroup')}
                         className={controlButton}
                       >
-                        Remove
+                        {t('remove')}
                       </button>
                     </span>
                   </div>
@@ -334,7 +342,7 @@ export function CVHeader() {
             <div className="absolute bottom-1 right-4 bg-white pl-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover/skills:opacity-100 print:hidden">
               <EntryControls
                 onAdd={() => addSkillGroup(locale)}
-                addLabel="Add a skill group"
+                addLabel={t('addSkillGroup')}
               />
             </div>
           )}

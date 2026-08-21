@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ApplicationStatus, WorkMode } from '../types';
 import type { BatchProgress } from '../hooks/useJobResearch';
 import type {
@@ -9,7 +10,7 @@ import type {
   Sort,
   SortKey
 } from '../filtering';
-import { sortKeys, sortLabels, toggleValue } from '../filtering';
+import { sortKeys, toggleValue } from '../filtering';
 
 type TableControlsProps = {
   filters: Filters;
@@ -107,6 +108,9 @@ export function TableControls({
   batch,
   onStopBatch
 }: TableControlsProps) {
+  const t = useTranslations('research.controls');
+  const statusT = useTranslations('research.statuses');
+  const workModeT = useTranslations('research.workModes');
   // Collapsed by default: the facets run to a dozen pills on a scraped tab, and
   // most visits are a search-and-sort rather than a faceted narrowing.
   const [expanded, setExpanded] = useState(false);
@@ -135,14 +139,14 @@ export function TableControls({
             type="search"
             value={filters.query}
             onChange={(event) => set(() => ({ query: event.target.value }))}
-            placeholder="Filter by role, company, city or skill…"
-            aria-label="Filter offers"
+            placeholder={t('filterPlaceholder')}
+            aria-label={t('filterAria')}
             className="w-full rounded-lg border border-gray-300 py-1.5 pl-8 pr-3 text-xs text-gray-900 transition-colors placeholder:text-gray-400 focus:border-transparent focus:ring-2 focus:ring-[#65B7FF]"
           />
         </div>
 
         <label className="sr-only" htmlFor="sort-key">
-          Sort by
+          {t('sortBy')}
         </label>
         <select
           id="sort-key"
@@ -154,7 +158,7 @@ export function TableControls({
         >
           {sortKeys.map((key) => (
             <option key={key} value={key}>
-              {sortLabels[key]}
+              {t(`sort.${key}`)}
             </option>
           ))}
         </select>
@@ -169,10 +173,12 @@ export function TableControls({
           }
           title={
             sort.direction === 'asc'
-              ? 'Ascending — click for descending'
-              : 'Descending — click for ascending'
+              ? t('ascendingTitle')
+              : t('descendingTitle')
           }
-          aria-label={`Sort direction: ${sort.direction === 'asc' ? 'ascending' : 'descending'}`}
+          aria-label={t('direction', {
+            direction: sort.direction === 'asc' ? t('ascending') : t('descending')
+          })}
           className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-gray-500 transition-colors hover:border-gray-400 hover:text-gray-700"
         >
           <svg
@@ -200,7 +206,7 @@ export function TableControls({
               : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
           }`}
         >
-          Filters
+          {t('filters')}
           {activeFilters > 0 && (
             <span className="rounded-full bg-[#65B7FF] px-1.5 text-[10px] tabular-nums text-white">
               {activeFilters}
@@ -224,9 +230,9 @@ export function TableControls({
 
       {expanded && (
         <div className="mt-3 space-y-2.5 border-t border-gray-100 pt-3">
-          <FacetRow label="Salary">
+          <FacetRow label={t('salary')}>
             <Pill
-              label="Stated only"
+              label={t('statedOnly')}
               count={facets.withSalary}
               active={filters.salaryOnly}
               onClick={() => set((current) => ({ salaryOnly: !current.salaryOnly }))}
@@ -234,11 +240,11 @@ export function TableControls({
           </FacetRow>
 
           {facets.workModes.length > 0 && (
-            <FacetRow label="Work mode">
+            <FacetRow label={t('workMode')}>
               {facets.workModes.map((option) => (
                 <Pill
                   key={option.value}
-                  label={option.value}
+                  label={workModeT(option.value)}
                   count={option.count}
                   active={filters.workModes.includes(option.value)}
                   onClick={() =>
@@ -255,7 +261,7 @@ export function TableControls({
           )}
 
           {facets.contractTypes.length > 0 && (
-            <FacetRow label="Contract">
+            <FacetRow label={t('contract')}>
               {facets.contractTypes.map((option) => (
                 <Pill
                   key={option.value}
@@ -276,11 +282,11 @@ export function TableControls({
           )}
 
           {facets.statuses.length > 0 && (
-            <FacetRow label="Status">
+            <FacetRow label={t('status')}>
               {facets.statuses.map((option) => (
                 <Pill
                   key={option.value}
-                  label={option.value}
+                  label={statusT(option.value)}
                   count={option.count}
                   active={filters.statuses.includes(option.value)}
                   onClick={() =>
@@ -301,15 +307,18 @@ export function TableControls({
       {(activeFilters > 0 || shown !== total || analysable > 0 || batch) && (
         <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-gray-100 pt-2 text-[11px] text-gray-500">
           <span className="tabular-nums">
-            Showing {shown} of {total}
+            {t('showing', { shown, total })}
           </span>
 
           <div className="flex items-center gap-3">
             {batch ? (
               <>
                 <span className="tabular-nums text-gray-600">
-                  Analysing {batch.done + batch.failed} of {batch.total}
-                  {batch.failed > 0 ? ` · ${batch.failed} failed` : ''}
+                  {t('analysing', {
+                    done: batch.done + batch.failed,
+                    total: batch.total,
+                    failed: batch.failed > 0 ? t('failed', { count: batch.failed }) : ''
+                  })}
                 </span>
                 {/* Safe to offer, and worth offering: every row that has
                     already landed is written, so stopping costs only what has
@@ -319,7 +328,7 @@ export function TableControls({
                   onClick={onStopBatch}
                   className="font-medium text-gray-500 transition-colors hover:text-gray-800"
                 >
-                  Stop
+                  {t('stop')}
                 </button>
               </>
             ) : (
@@ -327,10 +336,10 @@ export function TableControls({
                 <button
                   type="button"
                   onClick={onAnalyseAll}
-                  title="Fill the analysed fields for every row that kept its posting text. No re-fetching."
+                  title={t('analyseTitle')}
                   className="font-medium text-gray-500 transition-colors hover:text-gray-800"
                 >
-                  Analyse {analysable} unanalysed
+                  {t('analyse', { count: analysable })}
                 </button>
               )
             )}
@@ -341,7 +350,7 @@ export function TableControls({
                 onClick={onReset}
                 className="font-medium text-gray-500 transition-colors hover:text-gray-800"
               >
-                Reset filters
+                {t('reset')}
               </button>
             )}
           </div>

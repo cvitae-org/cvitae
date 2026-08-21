@@ -1,4 +1,5 @@
 import { runCapability, toRuntimeModel } from '@/libs/runtime/client';
+import { apiError } from '@/libs/i18n/errors';
 
 /**
  * Translates selected sections of the browser-owned CV through the local
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     body = await req.json();
   } catch {
     return Response.json(
-      { error: 'The request body must be JSON.' },
+      { error: apiError('invalidRequest') },
       { status: 400 }
     );
   }
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
 
   if (!document || typeof document !== 'object' || Array.isArray(document)) {
     return Response.json(
-      { error: 'Send the CV document to translate.' },
+      { error: apiError('invalidRequest', undefined, 'Missing CV document.') },
       { status: 400 }
     );
   }
@@ -79,7 +80,13 @@ export async function POST(req: Request) {
     source_language === target_language
   ) {
     return Response.json(
-      { error: 'Source and target CV languages must be different EN/PL locales.' },
+      {
+        error: apiError(
+          'invalidRequest',
+          undefined,
+          'Source and target languages must be different EN/PL locales.'
+        )
+      },
       { status: 400 }
     );
   }
@@ -92,8 +99,11 @@ export async function POST(req: Request) {
   ) {
     return Response.json(
       {
-        error:
-          'Choose one or more distinct CV sections: personal, role_description, skills, experience, education, certificates or languages.'
+        error: apiError(
+          'invalidRequest',
+          undefined,
+          'Choose one or more distinct supported CV sections.'
+        )
       },
       { status: 400 }
     );
@@ -127,14 +137,20 @@ export async function POST(req: Request) {
 
   if (outcome.status === 'unavailable') {
     return Response.json(
-      { error: RUNTIME_ABSENT, reason: 'runtime_unavailable' },
+      {
+        error: apiError('cv.translationFailed', undefined, RUNTIME_ABSENT),
+        reason: 'runtime_unavailable'
+      },
       { status: 503 }
     );
   }
 
   if (outcome.status === 'failed') {
     return Response.json(
-      { error: outcome.detail, reason: outcome.reason },
+      {
+        error: apiError('cv.translationFailed', undefined, outcome.detail),
+        reason: outcome.reason
+      },
       { status: outcome.reason === 'invalid_input' ? 400 : 502 }
     );
   }
@@ -157,8 +173,11 @@ export async function POST(req: Request) {
   if (!contractMatches) {
     return Response.json(
       {
-        error:
-          'cvitae-agent-runtime returned a translation for a different language or section. Update/restart the runtime and try again.',
+        error: apiError(
+          'cv.translationFailed',
+          undefined,
+          'Runtime response language or section did not match the request.'
+        ),
         reason: 'runtime_contract_mismatch'
       },
       { status: 502 }

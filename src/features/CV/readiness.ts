@@ -12,6 +12,9 @@ export type ReadinessCategory =
 export type ReadinessFinding = {
   code: string;
   message: string;
+  messageKey: string;
+  values?: Record<string, string | number>;
+  source?: 'pdf';
   severity: 'block' | 'warning' | 'info';
 };
 
@@ -20,8 +23,10 @@ export type ReadinessReport = Record<ReadinessCategory, ReadinessFinding[]>;
 const finding = (
   code: string,
   message: string,
-  severity: ReadinessFinding['severity'] = 'warning'
-): ReadinessFinding => ({ code, message, severity });
+  severity: ReadinessFinding['severity'] = 'warning',
+  values?: Record<string, string | number>,
+  messageKey = code
+): ReadinessFinding => ({ code, message, messageKey, values, severity });
 
 const invalidLink = (value: string): boolean => {
   try {
@@ -41,12 +46,12 @@ const normalizeSkill = (value: string) =>
 const CLICHES =
   /\b(?:team player|hard worker|passionate about|detail[- ]oriented|results[- ]driven|dynamic professional|gracz zespołowy|pasjonuję się)\b/i;
 
-const COMMON_LANGUAGE_ERRORS: Array<[RegExp, string]> = [
-  [/\bJavascript\b/, 'Use “JavaScript”.'],
-  [/\bTypescript\b/, 'Use “TypeScript”.'],
-  [/\barchitekture\b/i, 'Polish spelling: use “architekturę”.'],
-  [/\bi\s+i\b/i, 'Possible duplicated Polish conjunction “i”.'],
-  [/\bReact['’]a\b/i, 'Prefer an inflected phrase that does not add an apostrophe to “React”.']
+const COMMON_LANGUAGE_ERRORS: Array<[RegExp, string, string]> = [
+  [/\bJavascript\b/, 'javascript', 'Use “JavaScript”.'],
+  [/\bTypescript\b/, 'typescript', 'Use “TypeScript”.'],
+  [/\barchitekture\b/i, 'polish-architecture', 'Polish spelling: use “architekturę”.'],
+  [/\bi\s+i\b/i, 'polish-conjunction', 'Possible duplicated Polish conjunction “i”.'],
+  [/\bReact['’]a\b/i, 'react-apostrophe', 'Prefer an inflected phrase that does not add an apostrophe to “React”.']
 ];
 
 const KNOWN_CASING: Record<string, string> = {
@@ -86,17 +91,19 @@ export const runReadinessChecks = ({
     );
   } else {
     pdf.issues.forEach((issue) =>
-      report['pdf-integrity'].push(
-        finding(
+      report['pdf-integrity'].push({
+        ...finding(
           issue.code,
           issue.message,
-          issue.severity === 'block' ? 'block' : 'warning'
-        )
-      )
+          issue.severity === 'block' ? 'block' : 'warning',
+          issue.values
+        ),
+        source: 'pdf'
+      })
     );
     if (pdf.ok && pdf.issues.length === 0) {
       report['pdf-integrity'].push(
-        finding('passed', 'Native text, A4 pages, links and Unicode passed preflight.', 'info')
+        finding('passed', 'Native text, A4 pages, links and Unicode passed preflight.', 'info', undefined, 'pdf-passed')
       );
     }
   }
@@ -118,7 +125,7 @@ export const runReadinessChecks = ({
   Object.entries(document.personal.links).forEach(([label, url]) => {
     if (invalidLink(url)) {
       report['parsed-field-coverage'].push(
-        finding('link', `${label} has an invalid URL: ${url}`, 'block')
+        finding('link', `${label} has an invalid URL: ${url}`, 'block', { label, url })
       );
     }
   });
@@ -131,7 +138,7 @@ export const runReadinessChecks = ({
   document.experience.forEach((job, index) => {
     if (!job.company.trim() || !job.title.trim() || !job.started.trim()) {
       report['parsed-field-coverage'].push(
-        finding('chronology', `Experience entry ${index + 1} has ambiguous employer/title/date fields.`)
+        finding('chronology', `Experience entry ${index + 1} has ambiguous employer/title/date fields.`, 'warning', { number: index + 1 })
       );
     }
   });
@@ -147,7 +154,13 @@ export const runReadinessChecks = ({
       report['role-evidence'].push(
         finding(
           match.status,
-          `${requirement?.exactText ?? match.requirementId}: ${match.status.replace('-', ' ')}.`
+          `${requirement?.exactText ?? match.requirementId}: ${match.status.replace('-', ' ')}.`,
+          'warning',
+          {
+            requirement: requirement?.exactText ?? match.requirementId,
+            status: match.status
+          },
+          'requirement-gap'
         )
       );
     });
@@ -172,7 +185,9 @@ export const runReadinessChecks = ({
           finding(
             requirement.category,
             `${requirement.exactText} — answer this application question truthfully; CV wording cannot resolve it.`,
-            match.status === 'missing' ? 'block' : 'warning'
+            match.status === 'missing' ? 'block' : 'warning',
+            { requirement: requirement.exactText },
+            'knockout'
           )
         );
       }
@@ -191,19 +206,26 @@ export const runReadinessChecks = ({
   skills.forEach((skill) => {
     const key = normalizeSkill(skill);
     if (seen.has(key)) {
-      report['human-scan-quality'].push(finding('duplicate-skill', `Duplicate skill: ${skill}.`));
+      report['human-scan-quality'].push(
+        finding('duplicate-skill', `Duplicate skill: ${skill}.`, 'warning', { skill })
+      );
     }
     seen.add(key);
     const preferred = KNOWN_CASING[key.replace(/\./g, '')] ?? KNOWN_CASING[key];
     if (preferred && preferred !== skill) {
       report['human-scan-quality'].push(
-        finding('technology-casing', `Use consistent casing: "${preferred}" instead of "${skill}".`)
+        finding('technology-casing', `Use consistent casing: "${preferred}" instead of "${skill}".`, 'warning', {
+          preferred,
+          actual: skill
+        })
       );
     }
   });
   if (skills.length > 45) {
     report['human-scan-quality'].push(
-      finding('skill-density', `${skills.length} skills may be hard to scan; keep the relevant subset.`)
+      finding('skill-density', `${skills.length} skills may be hard to scan; keep the relevant subset.`, 'warning', {
+        count: skills.length
+      })
     );
   }
   if (CLICHES.test(document.role_description)) {
@@ -213,23 +235,28 @@ export const runReadinessChecks = ({
     document.role_description,
     ...document.experience.flatMap((job) => job.highlights)
   ].join('\n');
-  COMMON_LANGUAGE_ERRORS.forEach(([pattern, message]) => {
+  COMMON_LANGUAGE_ERRORS.forEach(([pattern, messageKey, message]) => {
     if (pattern.test(prose)) {
-      report['human-scan-quality'].push(finding('language', message));
+      report['human-scan-quality'].push(
+        finding('language', message, 'warning', undefined, messageKey)
+      );
     }
   });
   document.experience.forEach((job) => {
     job.highlights.forEach((bullet) => {
       if (bullet.trim().length < 35) {
         report['human-scan-quality'].push(
-          finding('weak-bullet', `Short/vague bullet at ${job.company}: "${bullet}".`)
+          finding('weak-bullet', `Short/vague bullet at ${job.company}: "${bullet}".`, 'warning', {
+            company: job.company,
+            bullet
+          })
         );
       }
     });
   });
   if (report['human-scan-quality'].length === 0) {
     report['human-scan-quality'].push(
-      finding('passed', 'No duplicate skills, common clichés, casing issues or unusually weak bullets detected.', 'info')
+      finding('passed', 'No duplicate skills, common clichés, casing issues or unusually weak bullets detected.', 'info', undefined, 'quality-passed')
     );
   }
 

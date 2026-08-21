@@ -1,0 +1,2 @@
+export const MASTER_CV_LOCALE_COOKIE = 'CVITAE_CV_LOCALE';
+export const MASTER_CV_LOCALE_MAX_AGE = 60 * 60 * 24 * 365;

@@ -74,7 +74,7 @@ export const useOfferAnalysis = () => {
       analyse,
       rerun,
       isAnalysing: isResearching,
-      analysisError: error?.message ?? null,
+      analysisError: error,
       clearAnalysisError: clearError
     }),
     [recordFor, analyse, rerun, isResearching, error, clearError]

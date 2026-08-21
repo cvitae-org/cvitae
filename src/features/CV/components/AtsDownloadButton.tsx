@@ -1,10 +1,17 @@
 "use client";
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { Locale } from '@/libs/i18n/config';
 import type { CvDocument } from '../document';
 import { generateAtsPdf, saveBlob } from '../pdf/atsPdf';
 import type { PdfPreflightIssue } from '../pdf/preflight';
+import {
+  useRegisterPdfDownloadMessages,
+  type PdfDownloadMessage,
+} from './PdfDownloadPanel';
+
+const EMPTY_BLOCKED_REASONS: string[] = [];
 
 type AtsDownloadButtonProps = {
   document: CvDocument;
@@ -20,16 +27,52 @@ export function AtsDownloadButton({
   locale,
   targetRole,
   company,
-  blockedReasons = [],
+  blockedReasons = EMPTY_BLOCKED_REASONS,
   className = ''
 }: AtsDownloadButtonProps) {
+  const t = useTranslations('cv.pdf');
   const [pending, setPending] = useState(false);
   const [issues, setIssues] = useState<PdfPreflightIssue[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    text: string;
+    detail?: string;
+  } | null>(null);
+
+  const messages = useMemo((): PdfDownloadMessage[] => {
+    const items: PdfDownloadMessage[] = [];
+    if (blockedReasons.length > 0) {
+      items.push({
+        key: 'ats-blocked',
+        text: t('atsBlocked', { reasons: blockedReasons.join('; ') }),
+        severity: 'error',
+      });
+    }
+    if (error) {
+      items.push({
+        key: 'ats-error',
+        text: error.text,
+        detail: error.detail,
+        severity: 'error'
+      });
+    }
+    issues.forEach((issue) => {
+      items.push({
+        key: `ats-issue-${issue.code}-${issue.message}`,
+        text: t(`issues.${issue.code}`, issue.values),
+        detail: issue.detail,
+        severity: issue.severity === 'block' ? 'error' : 'warning',
+      });
+    });
+    return items;
+  }, [blockedReasons, error, issues, t]);
+
+  useRegisterPdfDownloadMessages('ats', messages);
 
   const download = async () => {
     if (blockedReasons.length > 0) {
-      setError(`Download blocked: ${blockedReasons.join('; ')}.`);
+      setError({
+        text: t('downloadBlocked', { reasons: blockedReasons.join('; ') })
+      });
       return;
     }
     setPending(true);
@@ -44,12 +87,15 @@ export function AtsDownloadButton({
       });
       setIssues(result.preflight.issues);
       if (!result.preflight.ok) {
-        setError('Download blocked because the generated PDF failed integrity checks.');
+        setError({ text: t('integrityBlocked') });
         return;
       }
       saveBlob(result.blob, result.filename);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not generate the ATS PDF.');
+      setError({
+        text: t('atsFailed'),
+        detail: cause instanceof Error ? cause.message : undefined
+      });
     } finally {
       setPending(false);
     }
@@ -61,8 +107,8 @@ export function AtsDownloadButton({
         type="button"
         onClick={download}
         disabled={pending || blockedReasons.length > 0}
-        title="Download native-text ATS PDF"
-        aria-label="Download ATS PDF"
+        title={t('downloadAtsTitle')}
+        aria-label={t('downloadAts')}
         className="relative flex h-9 w-9 items-center justify-center rounded-md bg-[#65B7FF] text-gray-100 shadow-sm transition-colors hover:bg-[#529ED5] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
       >
         {pending ? (
@@ -74,23 +120,6 @@ export function AtsDownloadButton({
           <span className="text-[10px] font-semibold leading-none">ATS</span>
         )}
       </button>
-      {blockedReasons.length > 0 && (
-        <div className="mt-2 w-72 rounded-md border border-red-200 bg-white p-2 text-[11px] leading-relaxed shadow-sm">
-          <p className="text-red-700">
-            ATS PDF blocked: {blockedReasons.join('; ')}.
-          </p>
-        </div>
-      )}
-      {(error || issues.length > 0) && (
-        <div className="mt-2 w-72 rounded-md border border-gray-200 bg-white p-2 text-[11px] leading-relaxed shadow-sm">
-          {error && <p className="text-red-700">{error}</p>}
-          {issues.map((issue) => (
-            <p key={`${issue.code}-${issue.message}`} className={issue.severity === 'block' ? 'text-red-700' : 'text-amber-700'}>
-              {issue.message}
-            </p>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

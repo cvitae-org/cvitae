@@ -1,4 +1,5 @@
 import { runCapability, toRuntimeModel } from '@/libs/runtime/client';
+import { apiError } from '@/libs/i18n/errors';
 
 /**
  * Reads a CV out of uploaded files and pasted text.
@@ -68,7 +69,10 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: 'The request body must be JSON.' }, { status: 400 });
+    return Response.json(
+      { error: apiError('invalidRequest') },
+      { status: 400 }
+    );
   }
 
   const { sources, ai, timeoutMs, sections, known_skills } = (body ?? {}) as {
@@ -91,8 +95,11 @@ export async function POST(req: Request) {
   if (!Array.isArray(sources) || sources.length === 0 || !sources.every(isSource)) {
     return Response.json(
       {
-        error:
-          'Send at least one source: {"kind":"upload","filename":"cv.pdf","content":"<base64>"} or {"kind":"text","content":"…"}.'
+        error: apiError(
+          'invalidRequest',
+          undefined,
+          'Send at least one uploaded file or text source.'
+        )
       },
       { status: 400 }
     );
@@ -122,7 +129,13 @@ export async function POST(req: Request) {
   );
 
   if (outcome.status === 'unavailable') {
-    return Response.json({ error: RUNTIME_ABSENT, reason: 'runtime_unavailable' }, { status: 503 });
+    return Response.json(
+      {
+        error: apiError('cv.importFailed', undefined, RUNTIME_ABSENT),
+        reason: 'runtime_unavailable'
+      },
+      { status: 503 }
+    );
   }
 
   if (outcome.status === 'failed') {
@@ -130,7 +143,10 @@ export async function POST(req: Request) {
     // PDF says to screenshot it, an unreadable format lists the ones it takes.
     // Rewriting them here would lose that.
     return Response.json(
-      { error: outcome.detail, reason: outcome.reason },
+      {
+        error: apiError('cv.importFailed', undefined, outcome.detail),
+        reason: outcome.reason
+      },
       { status: outcome.reason === 'invalid_input' ? 400 : 502 }
     );
   }

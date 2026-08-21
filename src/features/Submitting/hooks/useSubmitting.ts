@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
+import {
+  errorFromApi,
+  type ErrorDescriptor
+} from '@/libs/i18n/errors';
 import { loadSettings, toRequestOverride } from '@/features/Settings/aiSettings';
 import { getCvState } from '@/features/CV/store';
 import {
@@ -41,7 +45,7 @@ export const useSubmitting = () => {
   } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const [pending, setPending] = useState<PendingAction>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorDescriptor | null>(null);
 
   /**
    * Sent applications sink to the bottom. They are kept — a record of where
@@ -83,10 +87,24 @@ export const useSubmitting = () => {
         const data = await response.json();
 
         if (!response.ok) {
-          const details = Array.isArray(data.issues)
-            ? ` ${data.issues.slice(0, 3).join(' ')}`
+          const descriptor = errorFromApi(
+            data,
+            action === 'cv'
+              ? 'cv.generateFailed'
+              : 'submitting.emailFailed'
+          );
+          const issues = Array.isArray(data.issues)
+            ? data.issues
+                .filter((issue: unknown): issue is string =>
+                  typeof issue === 'string'
+                )
+                .slice(0, 3)
+                .join(' ')
             : '';
-          setError(`${data.error ?? 'The model could not be reached.'}${details}`);
+          setError({
+            ...descriptor,
+            detail: [descriptor.detail, issues].filter(Boolean).join(' ') || undefined
+          });
           return false;
         }
 
@@ -95,14 +113,25 @@ export const useSubmitting = () => {
         } catch (cause) {
           setError(
             cause instanceof EvidenceValidationError
-              ? `The proposal failed local evidence checks. ${cause.issues.slice(0, 3).join(' ')}`
-              : 'The proposal could not be materialized safely.'
+              ? {
+                  code: 'submitting.evidenceRejected',
+                  detail: cause.issues.slice(0, 3).join(' ')
+                }
+              : {
+                  code: 'submitting.materializeFailed',
+                  detail:
+                    cause instanceof Error ? cause.message.slice(0, 500) : undefined
+                }
           );
           return false;
         }
         return true;
-      } catch {
-        setError('Could not reach the AI service.');
+      } catch (cause) {
+        setError({
+          code: 'submitting.serviceUnreachable',
+          detail:
+            cause instanceof Error ? cause.message.slice(0, 500) : undefined
+        });
         return false;
       } finally {
         setPending(null);

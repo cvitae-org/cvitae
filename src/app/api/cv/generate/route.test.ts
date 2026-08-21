@@ -103,7 +103,7 @@ describe('POST /api/cv/generate evidence-v2', () => {
     const response = await call(requestFor());
     expect(response.status).toBe(422);
     const body = await response.json();
-    expect(body.error).toContain('previous variant was kept');
+    expect(body.error).toEqual({ code: 'submitting.evidenceRejected' });
     expect(body.issues.join(' ')).toContain('seniority');
     expect(mocks.generateObject).toHaveBeenCalledTimes(2);
   });

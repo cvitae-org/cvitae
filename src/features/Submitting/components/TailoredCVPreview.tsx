@@ -1,9 +1,7 @@
 "use client";
 
-import { NextIntlClientProvider } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import type { Locale } from '@/libs/i18n/config';
-import enMessages from '@/../messages/en.json';
-import plMessages from '@/../messages/pl.json';
 import { CVLayout } from '@/features/CV/components/CVLayout';
 import { CvDocumentProvider } from '@/features/CV/contexts/CvDocumentContext';
 import {
@@ -43,11 +41,6 @@ type TailoredCVPreviewProps = {
  * files of roughly 7KB is a cheaper way to guarantee that than a request that
  * can be in flight while the CV renders.
  */
-const messagesFor: Record<Locale, Record<string, unknown>> = {
-  en: enMessages,
-  pl: plMessages
-};
-
 /** Filesystem-safe, and recognisable in a downloads folder full of CVs. */
 const toSlug = (value: string): string =>
   value
@@ -76,29 +69,28 @@ export const cvFilename = (
 };
 
 export function TailoredCVPreview({ cv, language }: TailoredCVPreviewProps) {
+  const t = useTranslations('submitting');
   // The provider seeds itself once and the layout caches its measurements
   // until remounted, so switching submission — or regenerating this one, or
   // changing its language — has to remount both. Keying the outer provider
   // does that for the whole subtree, and a language change genuinely needs it:
   // every measured height changes with the text.
   return (
-    <NextIntlClientProvider
+    <CvDocumentProvider
       key={`${language}-${cv.meta.updatedAt}-${cv.id}`}
+      document={cv.output}
       locale={language}
-      messages={messagesFor[language]}
     >
-      <CvDocumentProvider document={cv.output} locale={language}>
-        <div inert aria-label="Frozen evidence CV preview">
-          <CVLayout previewId={`submission-${cv.id}`}>
-            <CVHeader />
-            <CVExperience />
-            <CVEducation />
-            <CVCertificates />
-            <CVLanguages />
-            <CVFooter />
-          </CVLayout>
-        </div>
-      </CvDocumentProvider>
-    </NextIntlClientProvider>
+      <div inert aria-label={t('previewAria')}>
+        <CVLayout previewId={`submission-${cv.id}`}>
+          <CVHeader />
+          <CVExperience />
+          <CVEducation />
+          <CVCertificates />
+          <CVLanguages />
+          <CVFooter />
+        </CVLayout>
+      </div>
+    </CvDocumentProvider>
   );
 }

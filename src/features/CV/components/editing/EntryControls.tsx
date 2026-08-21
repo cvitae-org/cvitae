@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
+
 /**
  * The add and remove affordances on a list entry.
  *
@@ -26,9 +28,12 @@ const buttonClass =
 export function EntryControls({
   onAdd,
   onRemove,
-  addLabel = 'Add',
-  removeLabel = 'Remove'
+  addLabel,
+  removeLabel
 }: EntryControlsProps) {
+  const t = useTranslations('cv.editor');
+  const resolvedAddLabel = addLabel ?? t('add');
+  const resolvedRemoveLabel = removeLabel ?? t('remove');
   // A section-level "add" has no row to hover, so hiding it until hover would
   // hide it permanently — and it is the only way to put the first entry into an
   // empty section. Per-entry controls still reveal on hover, so a filled CV
@@ -47,22 +52,22 @@ export function EntryControls({
         <button
           type="button"
           onClick={onRemove}
-          aria-label={removeLabel}
-          title={removeLabel}
+          aria-label={resolvedRemoveLabel}
+          title={resolvedRemoveLabel}
           className={buttonClass}
         >
-          Remove
+          {t('remove')}
         </button>
       )}
       {onAdd && (
         <button
           type="button"
           onClick={onAdd}
-          aria-label={addLabel}
-          title={addLabel}
+          aria-label={resolvedAddLabel}
+          title={resolvedAddLabel}
           className={buttonClass}
         >
-          + Add
+          + {t('add')}
         </button>
       )}
     </span>

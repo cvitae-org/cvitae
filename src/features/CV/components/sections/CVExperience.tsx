@@ -17,6 +17,7 @@ import {
   setHighlight,
 } from "../../store";
 import { entryOrder, sectionOrder, trailingOrder } from "../../order";
+import { useCvDocumentTranslations } from '../../hooks/useCvDocumentTranslations';
 
 /**
  * Work history: the largest section, and the only one with a list inside a list.
@@ -33,7 +34,8 @@ import { entryOrder, sectionOrder, trailingOrder } from "../../order";
  * unfilled.
  */
 export function CVExperience() {
-  const t = useTranslations("cv");
+  const documentT = useCvDocumentTranslations();
+  const t = useTranslations('cv.editor');
   const { document, locale } = useCvDocument();
   const experience = document.experience;
 
@@ -41,7 +43,7 @@ export function CVExperience() {
     <MeasuredSection
       id="experience"
       order={sectionOrder("experience")}
-      title={t("sections.experience")}
+      title={documentT("sections.experience")}
       repeatHeaderOnNewPage={false}
       headerClassName="bg-white px-4"
     >
@@ -53,9 +55,9 @@ export function CVExperience() {
         >
           <div className="bg-white px-4 pb-2">
             <EmptySection
-              hint="Job title — Company — Dates"
+              hint={t('experienceHint')}
               onCreate={() => addEntry(locale, "experience")}
-              label="Add the first job"
+              label={t('addFirstJob')}
             />
           </div>
         </MeasuredItem>
@@ -76,8 +78,8 @@ export function CVExperience() {
                     onCommit={(value) =>
                       patchEntry(locale, "experience", index, { title: value })
                     }
-                    placeholder="Job title"
-                    ariaLabel={`Job ${index + 1} title`}
+                    placeholder={t('jobTitle')}
+                    ariaLabel={t('jobTitleAria', { number: index + 1 })}
                     className="text-sm font-bold text-gray-900 font-cv"
                   />
                   <EditableText
@@ -86,8 +88,8 @@ export function CVExperience() {
                     onCommit={(value) =>
                       patchEntry(locale, "experience", index, { company: value })
                     }
-                    placeholder="Company"
-                    ariaLabel={`Job ${index + 1} company`}
+                    placeholder={t('company')}
+                    ariaLabel={t('jobCompanyAria', { number: index + 1 })}
                     className="text-xs text-gray-600 font-cv italic"
                   />
                 </div>
@@ -98,8 +100,8 @@ export function CVExperience() {
                     onCommit={(value) =>
                       patchEntry(locale, "experience", index, { started: value })
                     }
-                    placeholder="Start"
-                    ariaLabel={`Job ${index + 1} start date`}
+                    placeholder={t('start')}
+                    ariaLabel={t('jobStartAria', { number: index + 1 })}
                   />
                   <span aria-hidden="true">–</span>
                   <EditableText
@@ -116,13 +118,15 @@ export function CVExperience() {
                     // because this one is printed: an empty `finished` renders
                     // as this word in the exported PDF, and the Polish CV was
                     // saying "Czerwiec 2025 – Present".
-                    placeholder={t("ongoing")}
+                    placeholder={documentT("ongoing")}
                     placeholderIsValue
-                    ariaLabel={`Job ${index + 1} end date, empty means ongoing`}
+                    ariaLabel={t('jobEndAria', { number: index + 1 })}
                   />
                   <EntryControls
                     onRemove={() => removeEntry(locale, "experience", index)}
-                    removeLabel={`Remove ${entry.title || "this job"}`}
+                    removeLabel={t('removeJob', {
+                      title: entry.title || t('thisJob')
+                    })}
                   />
                 </span>
               </div>
@@ -175,8 +179,11 @@ export function CVExperience() {
                         onCommit={(value) =>
                           setHighlight(locale, index, bulletIndex, value)
                         }
-                        placeholder="What you did in this role"
-                        ariaLabel={`Job ${index + 1} bullet ${bulletIndex + 1}`}
+                        placeholder={t('highlightPlaceholder')}
+                        ariaLabel={t('highlightAria', {
+                          job: index + 1,
+                          bullet: bulletIndex + 1
+                        })}
                         className="flex-1"
                       />
                       {/*
@@ -195,11 +202,11 @@ export function CVExperience() {
                           onClick={() =>
                             removeHighlight(locale, index, bulletIndex)
                           }
-                          aria-label={`Remove bullet ${bulletIndex + 1}`}
-                          title="Remove this bullet"
+                          aria-label={t('removeBulletAria', { number: bulletIndex + 1 })}
+                          title={t('removeBullet')}
                           className="rounded px-1.5 py-0.5 text-[10px] font-medium text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#65B7FF]"
                         >
-                          Remove
+                          {t('remove')}
                         </button>
                       </span>
                     </li>
@@ -229,7 +236,9 @@ export function CVExperience() {
               <div className="absolute inset-x-4 bottom-0 ml-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 print:hidden">
                 <EntryControls
                   onAdd={() => addHighlight(locale, index)}
-                  addLabel={`Add a bullet to ${entry.title || "this job"}`}
+                  addLabel={t('addBulletTo', {
+                    title: entry.title || t('thisJob')
+                  })}
                 />
               </div>
             </div>
@@ -246,7 +255,7 @@ export function CVExperience() {
           <div className="bg-white px-4 pb-2">
             <EntryControls
               onAdd={() => addEntry(locale, "experience")}
-              addLabel="Add a job"
+              addLabel={t('addJob')}
             />
           </div>
         </MeasuredItem>

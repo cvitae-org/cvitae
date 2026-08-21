@@ -4,29 +4,39 @@ import { createId, normalizeUrl } from './storage';
 import { normalizeOfferText, normalizeRequirements } from './requirements';
 
 /**
- * Reads cvitae-scrapper's JSONL output into table rows.
+ * Reads a JSONL file of offers into table rows.
  *
  * One file becomes one tab, so every row here is stamped with the same
- * `listId` and a scraper run can be read on its own rather than dissolving
- * into everything collected before it.
+ * `listId` and a batch can be read on its own rather than dissolving into
+ * everything collected before it.
  *
- * The scraper has already done the expensive half — it fetched the posting and
- * kept the text — so an import costs nothing and needs no model. What it cannot
- * supply is the analysed half: company_type, role_profile, ideal_candidate,
- * responsibilities, team, how_to_apply, engagement_length and start_date exist
- * only as a reading of the text, not as anything a board publishes.
+ * An import costs nothing and needs no model, because whoever wrote the file
+ * has already done the expensive half — found the posting and kept its text.
+ * What a file cannot supply is the analysed half: company_type, role_profile,
+ * ideal_candidate, responsibilities, team, how_to_apply and engagement_length
+ * exist only as a reading of the posting, not as anything worth asking a person
+ * to type twice.
  *
  * Those land as "Not stated", which is the same string the table uses for a
  * detail an offer genuinely omitted — so, following the precedent set by
  * `migrate` in storage.ts, every imported row carries a note saying the blanks
- * are ours rather than the offer's. Pressing "Re-run" on a row fills them in,
- * one offer's worth of model calls at a time.
+ * are ours rather than the offer's. Pressing "Analyse" on a row fills them in
+ * from the retained text, one offer's worth of model calls at a time.
+ *
+ * The accepted keys are documented to the user in `ImportOffers`; that list and
+ * this type are the same contract written twice, and they must move together.
  */
 
-/** One line of the scraper's output. Mirrors its `ScrapedOffer`. */
-type ScrapedLine = {
+/** One line of the file. Every key is optional except `source_url`. */
+type ImportedLine = {
   board?: string;
   source_url?: string;
+  collected_at?: string;
+  /**
+   * The name `collected_at` used to have. Still read, and deliberately not
+   * documented: files written against the old name must keep importing, and
+   * nobody writing a new one should be told to reach for it.
+   */
   scraped_at?: string;
   title?: string;
   company?: string;
@@ -45,7 +55,7 @@ export type ImportSummary = {
   records: JobRecord[];
   /** Lines that were not JSON, or carried no URL. */
   malformed: number;
-  /** Same URL more than once in the file — the scraper appends across runs. */
+  /** Same URL more than once in the file. The last copy is the one kept. */
   duplicatesInFile: number;
   /**
    * Offers that also sit in an existing tab. Reported, not skipped: each tab
@@ -68,25 +78,26 @@ const list = (value: unknown): string[] =>
     : [];
 
 /**
- * Explains the empty columns, and keeps the facts the board stated but the
- * record has nowhere to put — `posted_at` has no field on JobRecord.
+ * Explains the empty columns, and keeps the facts the file stated but the
+ * record has nowhere to put — `posted_at` and `board` have no field on
+ * JobRecord, and dropping them would lose the only provenance the row has.
  */
-const noteFor = (line: ScrapedLine): string => {
-  const parts = [`Imported from cvitae-scrapper`];
-
-  if (line.board) parts[0] += ` (${line.board})`;
+const noteFor = (line: ImportedLine): string => {
+  const parts = [
+    line.board ? `Imported from ${line.board}` : 'Imported from a file'
+  ];
 
   if (line.posted_at) {
     parts.push(`Posted ${line.posted_at.slice(0, 10)}.`);
   }
 
-  parts.push('Analysed fields are empty — re-run to fill them.');
+  parts.push('Analysed fields are empty — run Analyse to fill them.');
 
   return parts.join('. ').replace('..', '.');
 };
 
 const toRecord = (
-  line: ScrapedLine,
+  line: ImportedLine,
   locale: string,
   listId: string
 ): JobRecord => ({
@@ -95,7 +106,7 @@ const toRecord = (
   status: 'new',
   notes: '',
 
-  // Stated by the board.
+  // Taken straight from the file.
   company: text(line.company),
   position: text(line.title),
   location: text(line.location),
@@ -108,15 +119,16 @@ const toRecord = (
     responsibilities: []
   }),
 
-  // Passed through as the board worded it. Boards emit schema.org's
-  // employmentType here (CONTRACTOR, FULL_TIME) rather than the Polish form of
-  // employment the analyser produces (B2B, UoP), and translating between the
-  // two would be a guess — so an imported row reads differently from an
-  // analysed one until it is re-run, which is the honest result.
+  // Passed through exactly as written. A file may carry schema.org's
+  // employmentType (CONTRACTOR, FULL_TIME) where the analyser produces the
+  // Polish form of employment (B2B, UoP), and translating between the two would
+  // be a guess — so an imported row reads differently from an analysed one
+  // until it is analysed, which is the honest result.
   contract_type: text(line.contract_type),
 
-  // Parsed out of the offer text by the scraper, where the page prints it
-  // plainly ("Start ASAP") but publishes nothing structured.
+  // Free text rather than a date: postings print this plainly ("Start ASAP",
+  // "od zaraz") and publish nothing structured, so parsing it would only ever
+  // be a guess at what the words meant.
   start_date: text(line.start_date),
 
   // Only a reading of the text can fill these — "Analyse" does it.
@@ -130,7 +142,7 @@ const toRecord = (
   how_to_apply: NOT_STATED,
 
   // Kept so the inferred fields can be filled later without re-fetching, and
-  // so re-analysis cannot overwrite the board's own figures with the model's.
+  // so analysis cannot overwrite the stated figures with the model's.
   offer_text:
     typeof line.text === 'string'
       ? normalizeOfferText(line.text) || undefined
@@ -150,8 +162,8 @@ const toRecord = (
   source_mode: 'url',
   source_note: noteFor(line),
   // When the offer was collected, not when it was imported — the row is only
-  // as fresh as the scrape behind it.
-  checked_at: line.scraped_at ?? new Date().toISOString(),
+  // as fresh as the reading behind it.
+  checked_at: line.collected_at ?? line.scraped_at ?? new Date().toISOString(),
   locale
 });
 
@@ -166,7 +178,7 @@ const toRecord = (
  * `existing` is every record already stored, across all tabs. It is read only
  * to count the overlap — see `alreadyElsewhere` — never to skip a row.
  */
-export const parseScrapedOffers = (
+export const parseImportedOffers = (
   contents: string,
   existing: JobRecord[],
   locale: string,
@@ -176,9 +188,9 @@ export const parseScrapedOffers = (
     existing.map((record) => normalizeUrl(record.source_url))
   );
 
-  // Last occurrence wins: the scraper appends, so a URL appearing twice means
-  // it was scraped again and the later copy is the fresher one.
-  const byUrl = new Map<string, ScrapedLine>();
+  // Last occurrence wins: a file is typically appended to over time, so a URL
+  // appearing twice means it was collected again and the later copy is fresher.
+  const byUrl = new Map<string, ImportedLine>();
   let malformed = 0;
   let duplicatesInFile = 0;
 
@@ -186,10 +198,10 @@ export const parseScrapedOffers = (
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    let parsed: ScrapedLine;
+    let parsed: ImportedLine;
 
     try {
-      parsed = JSON.parse(trimmed) as ScrapedLine;
+      parsed = JSON.parse(trimmed) as ImportedLine;
     } catch {
       malformed += 1;
       continue;

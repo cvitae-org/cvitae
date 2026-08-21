@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useState } from 'react';
+import { useFormatter, useTranslations } from 'next-intl';
+import { LocalizedError } from '@/components/LocalizedError';
+import type { ErrorDescriptor } from '@/libs/i18n/errors';
 import { locales, type Locale } from '@/libs/i18n/config';
 import { useCvDocument } from '@/features/CV/hooks/useCvDocument';
-import type { JobRecord } from '@/features/JobResearch/types';
-import type { Submission } from '../types';
+import { NOT_STATED, type JobRecord } from '@/features/JobResearch/types';
+import type { Submission, VariantStalenessReason } from '../types';
 import {
   applyMethodOf,
   countOfferGaps,
@@ -32,7 +35,7 @@ import { ReadinessPanel } from '@/features/CV/components/ReadinessPanel';
 type SubmissionDetailProps = {
   submission: Submission;
   pending: PendingAction;
-  error: string | null;
+  error: ErrorDescriptor | null;
   onGenerateCv: (submission: Submission) => void;
   onDraftEmail: (submission: Submission) => void;
   onDismissError: () => void;
@@ -62,10 +65,13 @@ function LanguagePicker({
   onChange: (language: Locale) => void;
   disabled: boolean;
 }) {
+  const t = useTranslations('submitting.detail');
+  const common = useTranslations('common');
+
   return (
     <div
       role="group"
-      aria-label="Language of the CV and email"
+      aria-label={t('languageAria')}
       className="flex flex-shrink-0 items-center gap-1 rounded-lg border border-gray-200 p-0.5"
     >
       {locales.map((locale) => {
@@ -78,7 +84,9 @@ function LanguagePicker({
             onClick={() => onChange(locale)}
             disabled={disabled}
             aria-pressed={isActive}
-            title={`Write the CV and email in ${locale.toUpperCase()}`}
+            title={t('writeLanguage', {
+              language: common(locale === 'en' ? 'english' : 'polish')
+            })}
             className={`rounded-md px-2 py-1 text-[11px] font-semibold uppercase transition-colors disabled:opacity-50 ${
               isActive
                 ? 'bg-[#65B7FF] text-white'
@@ -129,14 +137,14 @@ function Step({
 function SendIcon() {
   return (
     <svg
-      className="h-4 w-4"
+      className="h-4 w-4 rotate-45"
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
     >
       <path
         strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeLinejoin="miter"
         strokeWidth={2}
         d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
       />
@@ -176,9 +184,21 @@ export function SubmissionDetail({
   onRerun,
   isAnalysing
 }: SubmissionDetailProps) {
+  const t = useTranslations('submitting');
+  const common = useTranslations('common');
+  const format = useFormatter();
   const [copied, setCopied] = useState(false);
 
   const { offer, apply, cv } = submission;
+  const display = (value: string) =>
+    value === 'Unknown'
+      ? common('unknown')
+      : value === NOT_STATED
+        ? common('notStated')
+        : value;
+  const offerPosition = display(offer.position);
+  const offerCompany = display(offer.company);
+  const offerLocation = display(offer.location);
 
   // The name on the subject line comes from the CV being sent, in the language
   // it was written in — not from `messages`, where it used to live as
@@ -196,6 +216,9 @@ export function SubmissionDetail({
           submission.language
         )
       : [];
+  const staleText = (reasons: VariantStalenessReason[]) =>
+    reasons.map((reason) => t(`stale.${reason}`)).join(', ');
+  const applicationLanguage = submission.language.toUpperCase();
 
   // Any model call blocks the others: they share one panel, and a second
   // click landing on top of the first would leave the panel describing work
@@ -243,11 +266,11 @@ export function SubmissionDetail({
       <header className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold text-gray-900">
-            {offer.position}
+            {offerPosition}
           </h2>
           <p className="mt-0.5 truncate text-sm text-gray-500">
-            {offer.company}
-            {offer.location ? ` · ${offer.location}` : ''}
+            {offerCompany}
+            {offerLocation ? ` · ${offerLocation}` : ''}
           </p>
           {offer.source_url && (
             <a
@@ -264,7 +287,11 @@ export function SubmissionDetail({
         <div className="flex flex-shrink-0 items-center gap-2">
           {sent && (
             <span className="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">
-              Sent {new Date(submission.sentAt as string).toLocaleDateString()}
+              {t('detail.sentDate', {
+                date: format.dateTime(new Date(submission.sentAt as string), {
+                  dateStyle: 'medium'
+                })
+              })}
             </span>
           )}
 
@@ -282,8 +309,11 @@ export function SubmissionDetail({
               type="button"
               onClick={() => onAnalyse(submission)}
               disabled={busy || sent}
-              title="Fill the analysed fields from the stored text (no re-fetch)"
-              aria-label={`Analyse the stored text for ${offer.position} at ${offer.company}`}
+              title={t('detail.analyseTitle')}
+              aria-label={t('detail.analyseAria', {
+                position: offerPosition,
+                company: offerCompany
+              })}
               className="rounded-md p-1.5 text-gray-300 transition-colors hover:bg-gray-100 hover:text-[#65B7FF] disabled:opacity-40"
             >
               {isAnalysing ? (
@@ -311,8 +341,11 @@ export function SubmissionDetail({
               type="button"
               onClick={() => onRerun(submission)}
               disabled={busy || sent}
-              title="Read the posting again and re-run the analysis"
-              aria-label={`Re-run the analysis for ${offer.position} at ${offer.company}`}
+              title={t('detail.rerunTitle')}
+              aria-label={t('detail.rerunAria', {
+                position: offerPosition,
+                company: offerCompany
+              })}
               className="rounded-md p-1.5 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
             >
               {isAnalysing && !canAnalyse ? (
@@ -342,30 +375,30 @@ export function SubmissionDetail({
           empty, and those are what a tailored CV is built out of. */}
       {gaps > 0 && (
         <p className="text-xs text-gray-500">
-          {gaps} analysed field{gaps === 1 ? '' : 's'} still empty
-          {canAnalyse
-            ? ' — Analyse fills them from the stored offer text, which gives the CV and the email more to work with.'
-            : canRerun
-              ? ' — Re-run reads the posting again to fill them.'
-              : ' — the offer stated nothing about them.'}
+          {t(
+            canAnalyse
+              ? 'detail.gapsStored'
+              : canRerun
+                ? 'detail.gapsRerun'
+                : 'detail.gapsUnstated',
+            { count: gaps }
+          )}
         </p>
       )}
 
       {!record && (
         <p className="text-xs text-gray-500">
-          The research row for this offer has been deleted. The application
-          still works from the copy stored here, but the offer cannot be
-          analysed again.
+          {t('detail.recordDeleted')}
         </p>
       )}
 
       {error && (
         <div className="flex items-start justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <span>{error}</span>
+          <LocalizedError error={error} className="min-w-0 flex-1" />
           <button
             type="button"
             onClick={onDismissError}
-            aria-label="Dismiss"
+            aria-label={common('dismiss')}
             className="flex-shrink-0 text-amber-600 hover:text-amber-800"
           >
             <svg
@@ -387,8 +420,8 @@ export function SubmissionDetail({
 
       <Step
         index={1}
-        title="Build and review the evidence CV"
-        hint={`Proposes a cited headline, summary, skill order and factual bullet selection in ${submission.language.toUpperCase()}. Protected facts are materialized locally.`}
+        title={t('detail.cvStepTitle')}
+        hint={t('detail.cvStepHint', { language: applicationLanguage })}
         done={cv?.reviewState === 'approved'}
       >
         {cv && (
@@ -402,8 +435,7 @@ export function SubmissionDetail({
 
         {!cv && submission.legacyVariants?.length ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            A legacy tailored title/summary was preserved as unverified history.
-            It has no claim evidence, so regenerate and review before sending.
+            {t('detail.legacyWarning')}
           </p>
         ) : null}
 
@@ -424,7 +456,7 @@ export function SubmissionDetail({
           {pending === 'cv' ? (
             <>
               <Spinner />
-              Generating…
+              {t('detail.generating')}
             </>
           ) : (
             <>
@@ -441,7 +473,7 @@ export function SubmissionDetail({
                   d="M13 10V3L4 14h7v7l9-11h-7z"
                 />
               </svg>
-              {cv ? 'Generate new evidence draft' : 'Generate evidence CV'}
+              {cv ? t('detail.generateNew') : t('detail.generate')}
             </>
           )}
         </button>
@@ -449,11 +481,11 @@ export function SubmissionDetail({
 
       <Step
         index={2}
-        title="Where it goes"
+        title={t('detail.destinationTitle')}
         hint={
           method === 'email'
-            ? 'Taken from the posting where it printed an address. Correct it if it is wrong.'
-            : 'No address in the posting — this one applies through its own page. Add an address here to send by email instead.'
+            ? t('detail.destinationEmailHint')
+            : t('detail.destinationLinkHint')
         }
         done={method === 'email' || Boolean(offer.source_url)}
       >
@@ -461,7 +493,7 @@ export function SubmissionDetail({
           htmlFor="apply-email"
           className="block text-xs font-medium text-gray-600"
         >
-          Send to
+          {t('detail.sendTo')}
         </label>
         <input
           id="apply-email"
@@ -474,9 +506,11 @@ export function SubmissionDetail({
           className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-transparent focus:ring-2 focus:ring-[#65B7FF]"
         />
 
-        {offer.how_to_apply && offer.how_to_apply !== 'Not stated' && (
+        {offer.how_to_apply &&
+          offer.how_to_apply !== NOT_STATED &&
+          offer.how_to_apply !== 'Unknown' && (
           <p className="mt-2 text-xs text-gray-500">
-            The offer says: {offer.how_to_apply}
+            {t('detail.offerSays', { instruction: offer.how_to_apply })}
           </p>
         )}
       </Step>
@@ -484,15 +518,15 @@ export function SubmissionDetail({
       {method === 'email' && (
         <Step
           index={3}
-          title="The email"
-          hint={`A short covering note, in ${submission.language.toUpperCase()}. The CV is attached to it, so it does not repeat the CV.`}
+          title={t('detail.emailTitle')}
+          hint={t('detail.emailHint', { language: applicationLanguage })}
           done={apply.body.trim() !== ''}
         >
           <label
             htmlFor="apply-subject"
             className="block text-xs font-medium text-gray-600"
           >
-            Subject
+            {t('detail.subject')}
           </label>
           <input
             id="apply-subject"
@@ -509,7 +543,7 @@ export function SubmissionDetail({
             htmlFor="apply-body"
             className="mt-3 block text-xs font-medium text-gray-600"
           >
-            Message
+            {t('detail.message')}
           </label>
           <textarea
             id="apply-body"
@@ -517,7 +551,7 @@ export function SubmissionDetail({
             onChange={(event) =>
               patchApply(submission.id, { body: event.target.value })
             }
-            placeholder="Write it yourself, or draft it below and edit."
+            placeholder={t('detail.messagePlaceholder')}
             className="mt-1 h-56 w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm leading-relaxed text-gray-900 transition-colors placeholder:text-gray-400 focus:border-transparent focus:ring-2 focus:ring-[#65B7FF]"
           />
 
@@ -531,7 +565,7 @@ export function SubmissionDetail({
               {pending === 'email' ? (
                 <>
                   <Spinner />
-                  Drafting…
+                  {t('detail.drafting')}
                 </>
               ) : (
                 <>
@@ -548,7 +582,9 @@ export function SubmissionDetail({
                       d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                     />
                   </svg>
-                  {apply.body.trim() ? 'Redraft with AI' : 'Draft with AI'}
+                  {apply.body.trim()
+                    ? t('detail.redraft')
+                    : t('detail.draft')}
                 </>
               )}
             </button>
@@ -559,21 +595,20 @@ export function SubmissionDetail({
                 onClick={handleCopy}
                 className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
-                {copied ? 'Copied' : 'Copy'}
+                {copied ? t('detail.copied') : t('detail.copy')}
               </button>
             )}
 
             {apply.body.trim() && (
               <span className="text-[11px] text-gray-400">
-                {apply.body.length} characters
+                {t('detail.characters', { count: apply.body.length })}
               </span>
             )}
           </div>
 
           {overLong && (
             <p className="mt-2 text-xs text-amber-700">
-              Long messages can be cut off on the way to a mail client. If the
-              draft opens truncated, copy it and paste it in.
+              {t('detail.longMessage')}
             </p>
           )}
         </Step>
@@ -581,11 +616,11 @@ export function SubmissionDetail({
 
       <Step
         index={method === 'email' ? 4 : 3}
-        title="Send"
+        title={t('detail.sendTitle')}
         hint={
           method === 'email'
-            ? 'Opens a draft in your mail client, already addressed and written. Attach the CV PDF — download it from beside the preview below — and send it from there. The offer is marked applied in research.'
-            : 'Opens the posting so you can apply through its form, and marks the offer applied in research.'
+            ? t('detail.sendEmailHint')
+            : t('detail.sendLinkHint')
         }
         done={sent}
       >
@@ -595,15 +630,19 @@ export function SubmissionDetail({
                 a row already moved to "interview" keeps that, and a claim
                 that it reads "applied" would be wrong exactly there. */}
             <p className="text-sm text-gray-600">
-              Marked as sent on{' '}
-              {new Date(submission.sentAt as string).toLocaleString()}.
+              {t('detail.markedSent', {
+                date: format.dateTime(new Date(submission.sentAt as string), {
+                  dateStyle: 'medium',
+                  timeStyle: 'short'
+                })
+              })}
             </p>
             <button
               type="button"
               onClick={() => reopenSubmission(submission.id)}
               className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
             >
-              Mark as not sent
+              {t('detail.markNotSent')}
             </button>
           </div>
         ) : (
@@ -623,7 +662,9 @@ export function SubmissionDetail({
                 className="inline-flex items-center gap-2 rounded-lg bg-[#65B7FF] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#529ED5]"
               >
                 <SendIcon />
-                {method === 'email' ? 'Send' : 'Open the posting & mark applied'}
+                {method === 'email'
+                  ? t('detail.send')
+                  : t('detail.openAndMark')}
               </a>
             ) : (
               // A link cannot be disabled, and a disabled-looking link that
@@ -634,21 +675,25 @@ export function SubmissionDetail({
                 className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-gray-300 px-4 py-2 text-sm font-medium text-white"
               >
                 <SendIcon />
-                {method === 'email' ? 'Send' : 'Open the posting & mark applied'}
+                {method === 'email'
+                  ? t('detail.send')
+                  : t('detail.openAndMark')}
               </button>
             )}
 
             {!sendable && (
               <p className="mt-2 text-xs text-gray-500">
                 {!cv
-                  ? 'Generate the CV first — it is what is being sent.'
+                  ? t('detail.blockerNoCv')
                   : cv.reviewState !== 'approved'
-                    ? 'Review every change and approve the CV first.'
+                    ? t('detail.blockerUnapproved')
                     : staleReasons.length > 0
-                      ? `Regenerate the stale CV first: ${staleReasons.join(', ')}.`
+                      ? t('detail.blockerStale', {
+                          reasons: staleText(staleReasons)
+                        })
                       : method === 'email'
-                        ? 'Write or draft the message first.'
-                        : 'This offer has no address and no link, so there is nowhere to send it. Add an address above.'}
+                        ? t('detail.blockerMessage')
+                        : t('detail.blockerDestination')}
               </p>
             )}
           </>

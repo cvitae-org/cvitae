@@ -162,9 +162,9 @@ describe('snapshot-scoped evidence variants', () => {
     const changedOffer = offerFixture();
     changedOffer.position = 'Full-stack Developer';
     expect(variantStalenessReasons(variant, changedCv, changedOffer, 'pl')).toEqual([
-      'application language changed',
-      'master CV changed',
-      'job offer changed'
+      'application-language',
+      'master-cv',
+      'job-offer'
     ]);
   });
 });

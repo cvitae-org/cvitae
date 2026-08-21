@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { ResearchList } from '../types';
 import { MANUAL_LIST_ID } from '../types';
 
@@ -22,6 +23,7 @@ export function ResearchTabs({
   onRename,
   onClose
 }: ResearchTabsProps) {
+  const t = useTranslations('research.tabs');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Escape blurs the input to leave editing, and blur is also what commits a
@@ -43,7 +45,7 @@ export function ResearchTabs({
   return (
     <div
       role="tablist"
-      aria-label="Offer lists"
+      aria-label={t('ariaLabel')}
       className="flex items-stretch gap-1 overflow-x-auto border-b border-gray-200"
     >
       {lists.map((list) => {
@@ -51,6 +53,7 @@ export function ResearchTabs({
         const count = counts[list.id] ?? 0;
         const isEditing = editingId === list.id;
         const closable = list.id !== MANUAL_LIST_ID;
+        const displayName = list.id === MANUAL_LIST_ID ? t('manual') : list.name;
 
         return (
           <div
@@ -62,8 +65,8 @@ export function ResearchTabs({
             {isEditing ? (
               <input
                 autoFocus
-                defaultValue={list.name}
-                aria-label={`Rename ${list.name}`}
+                defaultValue={displayName}
+                aria-label={t('rename', { name: displayName })}
                 // Renaming a tab is almost always replacing the filename, not
                 // editing it, so the whole value starts selected.
                 onFocus={(event) => event.currentTarget.select()}
@@ -84,14 +87,14 @@ export function ResearchTabs({
                 aria-selected={isActive}
                 onClick={() => onSelect(list.id)}
                 onDoubleClick={() => setEditingId(list.id)}
-                title={`${list.name} — double-click to rename`}
+                title={t('renameHint', { name: displayName })}
                 className={`flex items-center gap-1.5 rounded px-1 py-0.5 text-xs font-medium transition-colors ${
                   isActive
                     ? 'text-gray-900'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                <span className="max-w-[168px] truncate">{list.name}</span>
+                <span className="max-w-[168px] truncate">{displayName}</span>
                 <span
                   className={`rounded-full px-1.5 py-px text-[10px] font-normal tabular-nums ${
                     isActive
@@ -110,8 +113,8 @@ export function ResearchTabs({
               <button
                 type="button"
                 onClick={() => onClose(list.id)}
-                title={`Close ${list.name}`}
-                aria-label={`Close ${list.name} and delete its offers`}
+                title={t('close', { name: displayName })}
+                aria-label={t('closeAndDelete', { name: displayName })}
                 className="rounded p-0.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
               >
                 <svg

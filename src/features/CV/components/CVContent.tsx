@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useLocale } from "next-intl";
-import type { Locale } from '@/libs/i18n/config';
+import { useTranslations } from 'next-intl';
 import { CVLayout } from "./CVLayout";
 import { CVDownloadButton } from "./CVDownloadButton";
 import { AtsDownloadButton } from './AtsDownloadButton';
@@ -14,6 +13,10 @@ import { usePortrait } from "../hooks/usePortrait";
 import { useCvDocument } from '../hooks/useCvDocument';
 import { atsFilename } from '../pdf/atsPdf';
 import { ReadinessPanel } from './ReadinessPanel';
+import {
+  PdfDownloadMessagesProvider,
+  PdfDownloadWarningButton,
+} from './PdfDownloadPanel';
 import { A4_DIMENSIONS } from '../constants';
 import {
   CVHeader,
@@ -31,12 +34,12 @@ interface CVContentProps {
 
 /** Master-CV editor; vacancy-specific variants live only in Submitting. */
 function CVContentInner({ showControls = true }: CVContentProps) {
+  const t = useTranslations('cv.controls');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isTranslateOpen, setIsTranslateOpen] = useState(false);
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
-  const { document } = useCvDocument();
+  const { document, locale } = useCvDocument();
   const { portrait } = usePortrait();
-  const locale = useLocale() as Locale;
 
   /**
    * Remounts the layout when anything it cannot detect by itself changes.
@@ -70,7 +73,8 @@ function CVContentInner({ showControls = true }: CVContentProps) {
   );
 
   return (
-    <div className="min-h-screen py-8 print:py-0">
+    <PdfDownloadMessagesProvider>
+    <div className="min-h-screen py-8 pb-28 print:py-0 print:pb-0">
       {/* CV Content - Centered with download button */}
       <div className="flex items-start justify-center gap-4 px-4 print:px-0">
         {showControls && (
@@ -79,7 +83,7 @@ function CVContentInner({ showControls = true }: CVContentProps) {
           </div>
         )}
 
-        {/* CV column — preview and readiness share the same width/alignment */}
+        {/* CV column — the docked readiness bar is sized to match this width */}
         <div
           className="flex flex-col"
           style={{ width: `${A4_DIMENSIONS.width}px` }}
@@ -93,19 +97,15 @@ function CVContentInner({ showControls = true }: CVContentProps) {
             <CVFooter />
           </CVLayout>
 
-          {showControls && (
-            <div className="mt-5 print:hidden">
-              <ReadinessPanel document={document} />
-            </div>
-          )}
+          {showControls && <ReadinessPanel document={document} docked />}
         </div>
 
         {showControls && (
           <div className="sticky top-8 print:hidden flex flex-col gap-2">
             <button
               onClick={() => setIsImportOpen(true)}
-              title="Import a CV from file"
-              aria-label="Import a CV from file"
+              title={t('import')}
+              aria-label={t('import')}
               className="relative flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-500 shadow-sm transition-colors duration-200 hover:bg-gray-50 hover:text-gray-700"
             >
               <svg
@@ -138,14 +138,11 @@ function CVContentInner({ showControls = true }: CVContentProps) {
             <button
               type="button"
               onClick={() => setIsTranslateOpen(true)}
-              title={
-                "Fill " +
-                locale.toUpperCase() +
-                " gaps from the " +
-                (locale === "pl" ? "EN" : "PL") +
-                " CV"
-              }
-              aria-label="Translate gaps from the other CV language"
+              title={t('translateGapsTitle', {
+                target: locale.toUpperCase(),
+                source: locale === 'pl' ? 'EN' : 'PL'
+              })}
+              aria-label={t('translateGaps')}
               className="relative flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-500 shadow-sm transition-colors duration-200 hover:bg-gray-50 hover:text-gray-700"
             >
               <svg
@@ -164,7 +161,8 @@ function CVContentInner({ showControls = true }: CVContentProps) {
             </button>
             <button
               onClick={() => setIsPortraitOpen(true)}
-              title="Portrait"
+              title={t('portrait')}
+              aria-label={t('portrait')}
               className="relative flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-500 shadow-sm transition-colors duration-200 hover:bg-gray-50 hover:text-gray-700"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,6 +180,7 @@ function CVContentInner({ showControls = true }: CVContentProps) {
                 filename={designedFilename}
                 previewId="master"
               />
+              <PdfDownloadWarningButton />
             </div>
           </div>
         )}
@@ -202,6 +201,7 @@ function CVContentInner({ showControls = true }: CVContentProps) {
         onClose={() => setIsPortraitOpen(false)}
       />
     </div>
+    </PdfDownloadMessagesProvider>
   );
 }
 

@@ -6,6 +6,7 @@ import type { Locale } from '@/libs/i18n/config';
 import { emptyDocument, isBlank, type CvDocument } from '../document';
 import { getServerSnapshot, getSnapshot, subscribe } from '../store';
 import { useCvDocumentOverride } from '../contexts/CvDocumentContext';
+import { useMasterCvLocaleOptional } from '../contexts/MasterCvLocaleContext';
 
 /**
  * The CV for the language currently being viewed.
@@ -30,7 +31,8 @@ export const useCvDocument = (
   blank: boolean;
 } => {
   const routeLocale = useLocale() as Locale;
-  const resolved = locale ?? routeLocale;
+  const masterLocale = useMasterCvLocaleOptional();
+  const resolved = locale ?? masterLocale?.locale ?? routeLocale;
   const override = useCvDocumentOverride();
 
   const { data, hydrated } = useSyncExternalStore(

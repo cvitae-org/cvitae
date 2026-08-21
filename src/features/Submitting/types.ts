@@ -155,13 +155,24 @@ export type EvidenceCvVariant = {
 
 export type EvidenceChange = {
   id: string;
-  label: string;
+  labelKey:
+    | 'headline'
+    | 'summary'
+    | 'skills'
+    | 'bulletSelection'
+    | 'bullet';
+  labelValues?: Record<string, string | number>;
   before: string;
   after: string;
   evidence: string[];
   requirements: string[];
   editable: boolean;
 };
+
+export type VariantStalenessReason =
+  | 'application-language'
+  | 'master-cv'
+  | 'job-offer';
 
 /** Kept for audit only; it has no evidence and cannot be approved or sent. */
 export type LegacyCvVariant = {
@@ -302,13 +313,6 @@ export const stageOf = (submission: Submission): SubmissionStage => {
   if (submission.sentAt) return 'sent';
   if (isSendable(submission)) return 'ready';
   return submission.cv ? 'tailored' : 'queued';
-};
-
-export const stageLabels: Record<SubmissionStage, string> = {
-  queued: 'Queued',
-  tailored: 'CV ready',
-  ready: 'Ready to send',
-  sent: 'Sent'
 };
 
 /** Drops the parts of a research row a submission has no business copying. */

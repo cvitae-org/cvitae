@@ -1,21 +1,20 @@
 "use client";
 
 import React from "react";
-import { useLocale } from "next-intl";
-import { useRouter, usePathname } from "@/libs/i18n/routing";
+import { useTranslations } from 'next-intl';
+import { useMasterCvLocale } from '../contexts/MasterCvLocaleContext';
 
 /**
  * Button component that switches between PL and EN versions of the CV.
  * Shows the target locale so the label reads as "switch to EN/PL".
  */
 export function CVLanguageSwitcher() {
-  const locale = useLocale();
-  const router = useRouter();
-  const pathname = usePathname();
+  const t = useTranslations('cv.controls');
+  const { locale, setLocale } = useMasterCvLocale();
 
   const toggleLocale = () => {
     const newLocale = locale === "pl" ? "en" : "pl";
-    router.replace(pathname, { locale: newLocale });
+    setLocale(newLocale);
   };
 
   const otherLang = locale === "pl" ? "EN" : "PL";
@@ -23,7 +22,8 @@ export function CVLanguageSwitcher() {
   return (
     <button
       onClick={toggleLocale}
-      title={`Switch to ${otherLang} version`}
+      title={t('switchDocumentLanguage', { language: otherLang })}
+      aria-label={t('switchDocumentLanguage', { language: otherLang })}
       className="
         relative w-9 h-9 rounded-md font-medium
         transition-colors duration-200 shadow-sm flex items-center justify-center
@@ -34,4 +34,3 @@ export function CVLanguageSwitcher() {
     </button>
   );
 }
-

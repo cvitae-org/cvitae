@@ -5,6 +5,7 @@ import {
   offerRequirementPriorities
 } from '@/features/JobResearch/types';
 import { locales } from '@/libs/i18n/config';
+import { apiError } from '@/libs/i18n/errors';
 import { validateEvidenceProposal } from '@/features/Submitting/evidence';
 import type {
   EvidenceCvProposal,
@@ -153,7 +154,7 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return Response.json(
         {
-          error: 'Expected a valid evidence-v2 request.',
+          error: apiError('invalidRequest'),
           issues: parsed.error.issues.map((issue) => issue.message)
         },
         { status: 400 }
@@ -161,7 +162,10 @@ export async function POST(req: Request) {
     }
     input = parsed.data;
   } catch {
-    return Response.json({ error: 'Expected a JSON body.' }, { status: 400 });
+    return Response.json(
+      { error: apiError('invalidRequest') },
+      { status: 400 }
+    );
   }
 
   try {
@@ -210,8 +214,7 @@ export async function POST(req: Request) {
 
     return Response.json(
       {
-        error:
-          'The proposal was rejected because it could not be supported by the supplied CV evidence. The previous variant was kept.',
+        error: apiError('submitting.evidenceRejected'),
         issues: finalIssues
       },
       { status: 422 }
@@ -220,7 +223,7 @@ export async function POST(req: Request) {
     if (error instanceof AiConfigError) {
       console.error('AI provider is misconfigured:', error.message);
       return Response.json(
-        { error: 'AI provider is not configured' },
+        { error: apiError('providerConfig', undefined, error) },
         { status: 500 }
       );
     }
@@ -228,8 +231,7 @@ export async function POST(req: Request) {
     console.error('Evidence CV generation failed:', error);
     return Response.json(
       {
-        error:
-          'The model did not return a valid evidence proposal after one retry. The previous variant was kept.'
+        error: apiError('cv.generateFailed', undefined, error)
       },
       { status: 502 }
     );

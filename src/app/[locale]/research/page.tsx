@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
+import { getTranslations } from 'next-intl/server';
 import { JobResearch } from "@/features/JobResearch";
 
-export const metadata: Metadata = {
-  title: "Job offer research",
-  description:
-    "Track job offers and how well each one matches the CV.",
-};
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'metadata' });
+  return { title: t('researchTitle'), description: t('researchDescription') };
+}
 
 export default function ResearchPage() {
   return <JobResearch />;

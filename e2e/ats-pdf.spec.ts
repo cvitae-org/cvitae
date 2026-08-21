@@ -113,7 +113,12 @@ for (const locale of ['en', 'pl'] as const) {
   test(`downloads and independently parses the ${locale.toUpperCase()} native ATS PDF`, async ({
     page
   }, testInfo) => {
-    await page.goto(`/${locale}`);
+    await page.goto('/');
+    if (locale === 'pl') {
+      await page.getByRole('button', {
+        name: 'Switch the CV document to PL'
+      }).click();
+    }
     const button = page.getByRole('button', { name: 'Download ATS PDF' });
     await expect(button).toBeEnabled();
     const [download] = await Promise.all([
@@ -242,6 +247,11 @@ test('blocks native export when a required font face is missing', async ({ page 
   );
   await page.goto('/en');
   await page.getByRole('button', { name: 'Download ATS PDF' }).click();
+  await expect(page.getByText('Could not generate the ATS PDF.')).toBeVisible();
+  await page
+    .locator('#pdf-download-info')
+    .getByText('Technical details')
+    .click();
   await expect(page.getByText(/DejaVu bold font is unavailable/i)).toBeVisible();
 });
 

@@ -1,7 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+import { useTranslations } from 'next-intl';
 import { usePDFGenerator } from "../hooks/usePDFGenerator";
+import {
+  useRegisterPdfDownloadMessages,
+  type PdfDownloadMessage,
+} from "./PdfDownloadPanel";
+
+const EMPTY_BLOCKED_REASONS: string[] = [];
 
 interface CVDownloadButtonProps {
   filename?: string;
@@ -17,22 +24,48 @@ interface CVDownloadButtonProps {
 export function CVDownloadButton({
   filename = "CV_Designed.pdf",
   previewId,
-  blockedReasons = [],
+  blockedReasons = EMPTY_BLOCKED_REASONS,
   className = "",
 }: CVDownloadButtonProps) {
+  const t = useTranslations('cv.pdf');
   const { generatePDF, isGenerating, error, warnings } = usePDFGenerator({
     filename,
     quality: 2,
     previewId,
   });
 
+  const messages = useMemo((): PdfDownloadMessage[] => {
+    const items: PdfDownloadMessage[] = [];
+    if (blockedReasons.length > 0) {
+      items.push({
+        key: "designed-blocked",
+        text: t('designedBlocked', { reasons: blockedReasons.join('; ') }),
+        severity: "error",
+      });
+    }
+    warnings.forEach((warning) => {
+      items.push({ key: `designed-warning-${warning}`, text: warning, severity: "warning" });
+    });
+    if (error) {
+      items.push({
+        key: "designed-error",
+        text: error.text,
+        detail: error.detail,
+        severity: "error"
+      });
+    }
+    return items;
+  }, [blockedReasons, warnings, error, t]);
+
+  useRegisterPdfDownloadMessages("designed", messages);
+
   return (
     <div className={className}>
       <button
         onClick={generatePDF}
         disabled={isGenerating || blockedReasons.length > 0}
-        title="Designed PDF — best for direct sharing; ATS parsing is less reliable"
-        aria-label="Download designed PDF"
+        title={t('designedTitle')}
+        aria-label={t('downloadDesigned')}
         className={`
           relative w-9 h-9 rounded-md font-medium
           transition-colors duration-200 shadow-sm bg-[#65B7FF] flex items-center justify-center
@@ -92,21 +125,6 @@ export function CVDownloadButton({
           </svg>
         )}
       </button>
-      <p className="mt-1 w-48 text-[10px] leading-snug text-amber-700">
-        Designed PDF: use for direct sharing. The native ATS PDF is the safer
-        application upload.
-      </p>
-      {blockedReasons.length > 0 && (
-        <p className="mt-1 w-72 text-xs text-red-600">
-          Designed PDF blocked: {blockedReasons.join('; ')}.
-        </p>
-      )}
-      {warnings.map((warning) => (
-        <p key={warning} className="mt-1 w-72 text-xs text-amber-700">
-          {warning}
-        </p>
-      ))}
-      {error && <p className="mt-1 w-72 text-xs text-red-600">{error}</p>}
     </div>
   );
 }

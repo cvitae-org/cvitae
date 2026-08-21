@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from 'react';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useJobResearch } from './hooks/useJobResearch';
 import { useTableView } from './hooks/useTableView';
 import { ResearchForm } from './components/ResearchForm';
@@ -9,9 +9,10 @@ import { ResearchTable } from './components/ResearchTable';
 import { ResearchTabs } from './components/ResearchTabs';
 import { TableControls } from './components/TableControls';
 import { ImportOffers } from './components/ImportOffers';
+import { ResearchAuditBar } from './components/ResearchAuditBar';
 import { clearList, removeList, renameList, setActiveList } from './store';
 import { toCsv } from './storage';
-import { NOT_STATED } from './types';
+import { MANUAL_LIST_ID, NOT_STATED } from './types';
 import type { JobRecord } from './types';
 import { SheetNavigation } from '@/components/SheetNavigation';
 import { Sheet } from '@/components/Sheet';
@@ -28,6 +29,7 @@ const toFileSlug = (name: string): string =>
     .replace(/^-+|-+$/g, '') || 'job-research';
 
 export function JobResearch() {
+  const t = useTranslations('research');
   const {
     records,
     allRecords,
@@ -79,6 +81,10 @@ export function JobResearch() {
   );
 
   const activeList = lists.find((list) => list.id === activeListId);
+  const activeListName =
+    activeList?.id === MANUAL_LIST_ID
+      ? t('tabs.manual')
+      : activeList?.name ?? '';
 
   const counts = useMemo(() => {
     const byList: Record<string, number> = {};
@@ -166,12 +172,12 @@ export function JobResearch() {
   const handleClear = useCallback(() => {
     if (
       window.confirm(
-        `Delete all ${records.length} offers in “${activeList?.name}”? This cannot be undone.`
+        t('confirmClear', { count: records.length, name: activeListName })
       )
     ) {
       clearList(activeListId);
     }
-  }, [records.length, activeList, activeListId]);
+  }, [records.length, activeListName, activeListId, t]);
 
   /** Closing a tab takes its offers with it — there is no other tab they sit in. */
   const handleCloseList = useCallback(
@@ -182,9 +188,7 @@ export function JobResearch() {
       if (
         count > 0 &&
         !window.confirm(
-          `Close “${list?.name}” and delete its ${count} offer${
-            count === 1 ? '' : 's'
-          }? This cannot be undone.`
+          t('confirmClose', { name: list?.name ?? '', count })
         )
       ) {
         return;
@@ -192,11 +196,11 @@ export function JobResearch() {
 
       removeList(listId);
     },
-    [lists, counts]
+    [lists, counts, t]
   );
 
   return (
-    <div className="min-h-screen py-8">
+    <div className="min-h-screen py-8 pb-28">
       <div className="flex items-start justify-center gap-4 px-4">
         <div className="sticky top-8 print:hidden">
           <SheetNavigation />
@@ -206,12 +210,16 @@ export function JobResearch() {
           <header className="mb-5 flex items-end justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
-                Job offer research
+                {t('title')}
               </h1>
               <p className="mt-0.5 text-sm text-gray-500">
                 {!hydrated || records.length === 0
-                  ? 'Collect what each offer actually says, in one place.'
-                  : `${records.length} offer${records.length === 1 ? '' : 's'} · ${stats.withSalary} with salary · ${stats.remote} remote`}
+                  ? t('emptyDescription')
+                  : t('stats', {
+                      offers: records.length,
+                      salary: stats.withSalary,
+                      remote: stats.remote
+                    })}
               </p>
             </div>
 
@@ -225,15 +233,15 @@ export function JobResearch() {
                   {/* Says what will actually be in the file, since filters
                       narrow it and a silent "Export CSV" would not. */}
                   {visible.length === records.length
-                    ? 'Export CSV'
-                    : `Export ${visible.length} shown`}
+                    ? t('exportCsv')
+                    : t('exportShown', { count: visible.length })}
                 </button>
                 <button
                   type="button"
                   onClick={handleClear}
                   className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600"
                 >
-                  {lists.length > 1 ? 'Clear tab' : 'Clear all'}
+                  {lists.length > 1 ? t('clearTab') : t('clearAll')}
                 </button>
               </div>
             )}
@@ -294,8 +302,7 @@ export function JobResearch() {
             </div>
 
             <p className="text-xs text-gray-400">
-              Stored in this browser only (IndexedDB). Clearing site data
-              removes it — export to CSV to keep a copy.
+              {t('storageNote')}
             </p>
           </div>
         </Sheet>
@@ -304,6 +311,12 @@ export function JobResearch() {
             the CV page, which has control buttons on both sides. */}
         <div className="w-9 flex-shrink-0 print:hidden" aria-hidden="true" />
       </div>
+
+      <ResearchAuditBar
+        records={records}
+        queuedIds={queuedIds}
+        tabName={activeListName}
+      />
     </div>
   );
 }

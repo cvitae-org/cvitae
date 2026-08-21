@@ -8,6 +8,13 @@ import {
   normalizeOfferText,
   withNormalizedRequirements
 } from '@/features/JobResearch/requirements';
+import { apiError } from '@/libs/i18n/errors';
+import {
+  providerErrorDetail,
+  rateLimitFromText,
+  rateLimitOf,
+  type RateLimitKind
+} from '@/libs/ai/errors';
 
 type AiModule = typeof import('ai');
 
@@ -39,13 +46,30 @@ export const maxDuration = 60;
 const remainingBudgetMs = (startedAt: number): number =>
   Math.max(5_000, maxDuration * 1_000 - 2_000 - (Date.now() - startedAt));
 
-const RATE_LIMITED = /rate limit|429|quota/i;
+/**
+ * Turns any 429 into the response that says what to do about it.
+ *
+ * Two different conditions arrive as the same status. A spent daily quota is
+ * over until it resets; a shared free-tier pool that is momentarily saturated
+ * clears in seconds and the honest advice is to press the button again. They
+ * were previously one message, and it named the wrong remedy for the common
+ * case.
+ */
+const rateLimitResponse = (error: unknown, kind: RateLimitKind): Response => {
+  const detail = providerErrorDetail(error);
+  console.warn(`Provider rate limit (${kind}):`, detail ?? '(no detail)');
 
-/** Providers surface quota exhaustion as a 429 somewhere in the error chain. */
-const isRateLimit = (error: unknown): boolean => {
-  if (typeof error !== 'object' || error === null) return false;
-  const candidate = error as { statusCode?: number; message?: string };
-  return candidate.statusCode === 429 || RATE_LIMITED.test(candidate.message ?? '');
+  return Response.json(
+    {
+      error: apiError(
+        kind === 'daily' ? 'research.rateLimit' : 'research.providerBusy',
+        undefined,
+        detail
+      ),
+      reason: 'rate_limited'
+    },
+    { status: 429 }
+  );
 };
 
 /**
@@ -57,7 +81,24 @@ const isRateLimit = (error: unknown): boolean => {
  * useful thing to tell them, so it is worth recognising in both forms rather
  * than letting the delegated path degrade to "the analysis failed".
  */
-const detailIsRateLimit = (detail: string): boolean => RATE_LIMITED.test(detail);
+const detailIsRateLimit = (detail: string): RateLimitKind | null =>
+  rateLimitFromText(detail);
+
+/**
+ * A refusal that came from the model provider rather than from the offer.
+ *
+ * Worth separating because the two lead somewhere different. "The analysis
+ * failed" invites re-reading the posting; a provider refusal is answered in
+ * Settings, or by waiting. OpenRouter's constant for any upstream failure is
+ * the literal string "Provider returned error", which is what a throttled free
+ * model looks like by the time it has crossed the runtime boundary — the status
+ * code and the provider's own explanation do not survive that trip, so this
+ * cannot claim the cause, only the culprit.
+ */
+const PROVIDER_REJECTED = /provider returned error|provider error|upstream/i;
+
+const detailIsProviderRejection = (detail: string): boolean =>
+  PROVIDER_REJECTED.test(detail);
 
 /** What a refusal from the runtime means to an HTTP caller. */
 const statusForRuntimeReason = (reason: string): number => {
@@ -76,9 +117,6 @@ const statusForRuntimeReason = (reason: string): number => {
       return 502;
   }
 };
-
-const RATE_LIMIT_MESSAGE =
-  'Daily free-model limit reached. It resets at 00:00 UTC — or switch AI_PROVIDER / add credits to keep going.';
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
@@ -102,7 +140,7 @@ export async function POST(req: Request) {
 
     if (!hasUrl && !hasText) {
       return Response.json(
-        { error: 'Provide a job offer URL or paste the offer text.' },
+        { error: apiError('research.provideSource') },
         { status: 400 }
       );
     }
@@ -139,7 +177,11 @@ export async function POST(req: Request) {
 
       if (outcome.status !== 'ok') {
         return Response.json(
-          { error: outcome.detail, reason: outcome.status, needsManualText: true },
+          {
+            error: apiError('research.sourceUnreadable', undefined, outcome.detail),
+            reason: outcome.status,
+            needsManualText: true
+          },
           { status: 422 }
         );
       }
@@ -200,7 +242,7 @@ export async function POST(req: Request) {
       // runtime's message already ends with what the user can do about it.
       return Response.json(
         {
-          error: delegated.detail,
+          error: apiError('research.sourceUnreadable', undefined, delegated.detail),
           reason: 'unreadable_source',
           needsManualText: true
         },
@@ -214,6 +256,8 @@ export async function POST(req: Request) {
       // against a different model than the user configured — which hides the
       // fault at exactly the point the two paths are meant to be comparable.
       const rateLimited = detailIsRateLimit(delegated.detail);
+      const providerRejected =
+        !rateLimited && detailIsProviderRejection(delegated.detail);
 
       console.error(
         `cvitae-agent-runtime refused the analysis (${delegated.reason}): ${delegated.detail}`
@@ -221,7 +265,21 @@ export async function POST(req: Request) {
 
       return Response.json(
         {
-          error: rateLimited ? RATE_LIMIT_MESSAGE : delegated.detail,
+          error: rateLimited
+            ? apiError(
+                rateLimited === 'daily'
+                  ? 'research.rateLimit'
+                  : 'research.providerBusy',
+                undefined,
+                delegated.detail
+              )
+            : apiError(
+                providerRejected
+                  ? 'research.providerRejected'
+                  : 'research.analysisFailed',
+                undefined,
+                delegated.detail
+              ),
           reason: rateLimited ? 'rate_limited' : delegated.reason
         },
         { status: rateLimited ? 429 : statusForRuntimeReason(delegated.reason) }
@@ -323,33 +381,36 @@ export async function POST(req: Request) {
     if (error instanceof AiConfigError) {
       console.error('AI provider is misconfigured:', error.message);
       return Response.json(
-        { error: 'AI provider is not configured' },
+        { error: apiError('providerConfig', undefined, error.message) },
         { status: 500 }
       );
     }
 
+    // Checked before the analysis branch, not after it. A 429 raised by a
+    // critical agent arrives wrapped in an OfferAnalysisError, so testing that
+    // first matched everything and left this unreachable — which is how a
+    // throttled free model came to report itself as an unexplained analysis
+    // failure on every row.
+    const limited = rateLimitOf(error);
+    if (limited) return rateLimitResponse(error, limited);
+
     if (error instanceof OfferAnalysisError) {
       console.error('Offer analysis failed:', error.message);
-      return Response.json({ error: error.message }, { status: 502 });
-    }
-
-    // The free tier allows 50 requests/day, and one offer now costs five of
-    // them. Hitting the ceiling is an ordinary operating condition, not a bug.
-    if (isRateLimit(error)) {
-      console.warn('Provider rate limit reached.');
       return Response.json(
         {
-          error:
-            'Daily free-model limit reached. It resets at 00:00 UTC — or switch AI_PROVIDER / add credits to keep going.',
-          reason: 'rate_limited'
+          error: apiError(
+            'research.analysisFailed',
+            undefined,
+            providerErrorDetail(error) ?? error.message
+          )
         },
-        { status: 429 }
+        { status: 502 }
       );
     }
 
     console.error('Job research failed:', error);
     return Response.json(
-      { error: 'Failed to analyse the job offer' },
+      { error: apiError('research.analysisFailed') },
       { status: 500 }
     );
   }

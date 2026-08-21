@@ -3,6 +3,7 @@ import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import { runBatchCapability, toRuntimeModel } from '@/libs/runtime/client';
 import { sseFrame } from '@/libs/runtime/sse';
 import { withNormalizedRequirements } from '@/features/JobResearch/requirements';
+import { apiError } from '@/libs/i18n/errors';
 
 /**
  * Analyses many stored offers in one go, streaming each row back as it lands.
@@ -53,7 +54,10 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: 'Expected a JSON body.' }, { status: 400 });
+    return Response.json(
+      { error: apiError('invalidRequest') },
+      { status: 400 }
+    );
   }
 
   const locale = typeof body.locale === 'string' ? body.locale : 'en';
@@ -72,8 +76,7 @@ export async function POST(req: Request) {
   if (offers.length === 0) {
     return Response.json(
       {
-        error:
-          'No offers with stored text to analyse. Rows imported without their posting have to be re-run individually.'
+        error: apiError('research.noStoredText')
       },
       { status: 400 }
     );
@@ -87,7 +90,7 @@ export async function POST(req: Request) {
     if (error instanceof AiConfigError) {
       console.error('AI provider is misconfigured:', error.message);
       return Response.json(
-        { error: 'AI provider is not configured' },
+        { error: apiError('providerConfig', undefined, error) },
         { status: 500 }
       );
     }
@@ -133,7 +136,11 @@ export async function POST(req: Request) {
           if (!offer) return;
 
           if (item.status === 'failed') {
-            send('row', { id: offer.id, status: 'failed', error: item.error });
+            send('row', {
+              id: offer.id,
+              status: 'failed',
+              error: apiError('research.analysisFailed', undefined, item.error)
+            });
             return;
           }
 
@@ -173,7 +180,16 @@ export async function POST(req: Request) {
         // Both remaining cases are final. `unavailable` is not a prompt to fall
         // back — there is nothing here to fall back to — it is the answer that
         // the runtime has to be started for this to work at all.
-        send('error', { error: outcome.detail, reason: outcome.status });
+        send('error', {
+          error: apiError(
+            outcome.status === 'unavailable'
+              ? 'research.batchStart'
+              : 'research.batchFailed',
+            undefined,
+            outcome.detail
+          ),
+          reason: outcome.status
+        });
       }
 
       try {

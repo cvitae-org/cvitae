@@ -1,6 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslations } from 'next-intl';
+import { LocalizedError } from '@/components/LocalizedError';
+import {
+  errorFromApi,
+  type ErrorDescriptor
+} from '@/libs/i18n/errors';
 import { loadSettings, toRequestOverride } from "@/features/Settings/aiSettings";
 import { useCvDocument } from "../hooks/useCvDocument";
 import { parseDocument, type CvDocument } from "../document";
@@ -26,7 +32,7 @@ import { replaceDocument } from "../store";
 type Stage =
   | { name: "idle" }
   | { name: "reading" }
-  | { name: "failed"; error: string }
+  | { name: "failed"; error: ErrorDescriptor }
   | { name: "preview"; result: ImportResult };
 
 type ImportResult = {
@@ -49,13 +55,13 @@ type ImportResult = {
 };
 
 /** Which sections feed each row of the found-against-current table. */
-const ROW_SECTION: Record<string, SectionKey> = {
-  Jobs: "experience",
-  Bullets: "experience",
-  Education: "education",
-  Certificates: "certificates",
-  Languages: "languages",
-  Skills: "skills",
+const ROW_SECTION = {
+  jobs: "experience",
+  bullets: "experience",
+  education: "education",
+  certificates: "certificates",
+  languages: "languages",
+  skills: "skills",
 };
 
 /**
@@ -75,13 +81,13 @@ const ROW_SECTION: Record<string, SectionKey> = {
  * so what it finds is carried forward as `known_skills`.
  */
 const SECTIONS = [
-  { key: "personal", label: "Name and contact" },
-  { key: "role_description", label: "Summary" },
-  { key: "skills", label: "Skills" },
-  { key: "experience", label: "Work experience" },
-  { key: "education", label: "Education" },
-  { key: "certificates", label: "Certificates" },
-  { key: "languages", label: "Languages" },
+  { key: "personal" },
+  { key: "role_description" },
+  { key: "skills" },
+  { key: "experience" },
+  { key: "education" },
+  { key: "certificates" },
+  { key: "languages" },
 ] as const;
 
 type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -101,7 +107,7 @@ type ImportPayload = {
   degraded?: unknown;
   skipped?: unknown;
   sources?: unknown;
-  error?: string;
+  error?: string | ErrorDescriptor;
 };
 
 /** Copies one artefact across, leaving everything else as it was. */
@@ -131,47 +137,56 @@ type CVImportModalProps = {
 
 /** What one section holds, for the found-against-current table. */
 const counts = (cv: CvDocument) => ({
-  Jobs: cv.experience.length,
-  Bullets: cv.experience.reduce((total, job) => total + job.highlights.length, 0),
-  Education: cv.education.length,
-  Certificates: cv.certificates.length,
-  Languages: cv.languages.length,
-  Skills: allSkills(cv).length,
+  jobs: cv.experience.length,
+  bullets: cv.experience.reduce((total, job) => total + job.highlights.length, 0),
+  education: cv.education.length,
+  certificates: cv.certificates.length,
+  languages: cv.languages.length,
+  skills: allSkills(cv).length,
 });
+type CountKey = keyof ReturnType<typeof counts>;
 
 /** Every skill on the strip, whatever row it is filed under. */
 const allSkills = (cv: CvDocument): string[] =>
   cv.skills.groups.flatMap((group) => group.items);
 
 /** Reads a file as the `data:…;base64,…` form the runtime accepts. */
-const toDataUrl = (file: File): Promise<string> =>
+const toDataUrl = (file: File, unreadable: string): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error(`${file.name} could not be read.`));
+    reader.onerror = () => reject(new Error(unreadable));
     reader.readAsDataURL(file);
   });
 
-const summarise = (report: MergeReport): string => {
-  const parts: string[] = [];
-  const { added } = report;
-
-  if (added.experience) parts.push(`${added.experience} job${added.experience > 1 ? "s" : ""}`);
-  if (added.highlights) parts.push(`${added.highlights} bullet${added.highlights > 1 ? "s" : ""}`);
-  if (added.education) parts.push(`${added.education} education`);
-  if (added.certificates) parts.push(`${added.certificates} certificate${added.certificates > 1 ? "s" : ""}`);
-  if (added.languages) parts.push(`${added.languages} language${added.languages > 1 ? "s" : ""}`);
-  if (added.skills) parts.push(`${added.skills} skill${added.skills > 1 ? "s" : ""}`);
-  if (report.filled.length) parts.push(`${report.filled.length} empty field${report.filled.length > 1 ? "s" : ""}`);
-
-  return parts.join(", ");
-};
-
 export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
+  const t = useTranslations('cv.import');
+  const commonT = useTranslations('common');
   const { document: cvDocument, locale } = useCvDocument();
   const [files, setFiles] = useState<File[]>([]);
   const [pasted, setPasted] = useState("");
   const [stage, setStage] = useState<Stage>({ name: "idle" });
+
+  const sectionLabel = useCallback(
+    (key: SectionKey) => t(`sections.${key}`),
+    [t]
+  );
+
+  const summarise = useCallback(
+    (report: MergeReport): string => {
+      const parts: string[] = [];
+      const { added } = report;
+      if (added.experience) parts.push(t('summary.jobs', { count: added.experience }));
+      if (added.highlights) parts.push(t('summary.bullets', { count: added.highlights }));
+      if (added.education) parts.push(t('summary.education', { count: added.education }));
+      if (added.certificates) parts.push(t('summary.certificates', { count: added.certificates }));
+      if (added.languages) parts.push(t('summary.languages', { count: added.languages }));
+      if (added.skills) parts.push(t('summary.skills', { count: added.skills }));
+      if (report.filled.length) parts.push(t('summary.fields', { count: report.filled.length }));
+      return parts.join(', ');
+    },
+    [t]
+  );
 
   /**
    * Which artefacts to ask for. All of them unless narrowed.
@@ -217,7 +232,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
   }, []);
 
   const [sectionState, setSectionState] = useState<
-    Record<string, { state: SectionState; detail?: string }>
+    Record<string, { state: SectionState; error?: ErrorDescriptor }>
   >({});
 
   const read = useCallback(async () => {
@@ -249,7 +264,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
     let knownSkills: string[] = chosen.has("skills")
       ? []
       : allSkills(cvDocument);
-    const failures: string[] = [];
+    const failures: SectionKey[] = [];
     const degraded: string[] = [];
     let skipped: ImportResult["skipped"] = [];
     let sources: ImportResult["sources"] = [];
@@ -263,11 +278,14 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
           files.map(async (file) => ({
             kind: "upload" as const,
             filename: file.name,
-            content: await toDataUrl(file),
+            content: await toDataUrl(
+              file,
+              t('fileUnreadable', { filename: file.name })
+            ),
           }))
         )),
         ...(pasted.trim()
-          ? [{ kind: "text" as const, label: "pasted", content: pasted.trim() }]
+          ? [{ kind: "text" as const, label: t('pastedSource'), content: pasted.trim() }]
           : []),
       ];
 
@@ -291,18 +309,19 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
         const payload = (await response.json()) as ImportPayload;
 
         if (!response.ok) {
+          const error = errorFromApi(payload, 'cv.importFailed');
           // One section failing must not lose the others. The run continues and
           // the preview says which artefact is missing and why — the whole
           // reason for splitting the request up.
-          failures.push(section.label);
+          failures.push(section.key);
           setSectionState((prev) => ({
             ...prev,
-            [section.key]: { state: "failed", detail: payload.error ?? "failed" },
+            [section.key]: { state: "failed", error },
           }));
 
           // Nothing was read at all, so there is no corpus and no point going on.
           if (corpus === null) {
-            setStage({ name: "failed", error: payload.error ?? "The import failed." });
+            setStage({ name: "failed", error });
             return;
           }
           continue;
@@ -337,10 +356,13 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
     } catch (error) {
       setStage({
         name: "failed",
-        error: error instanceof Error ? error.message : "The import failed.",
+        error: {
+          code: 'cv.importFailed',
+          detail: error instanceof Error ? error.message : undefined
+        },
       });
     }
-  }, [files, pasted, chosen, cvDocument, locale]);
+  }, [files, pasted, chosen, cvDocument, locale, t]);
 
   const merged = useMemo(
     () =>
@@ -387,17 +409,17 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              Import a CV — {locale.toUpperCase()}
+              {t('title', { language: locale.toUpperCase() })}
             </h2>
             <p className="mt-1 text-xs text-gray-500">
-              PDF, screenshot or text. Nothing is changed until you choose below.
+              {t('description')}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             disabled={stage.name === "reading"}
-            aria-label="Close"
+            aria-label={commonT('close')}
             className="rounded px-2 py-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40"
           >
             ✕
@@ -408,7 +430,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">
-                Files
+                {t('files')}
               </label>
               <input
                 type="file"
@@ -418,14 +440,13 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                 className="block w-full text-xs text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-[#65B7FF] file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-[#529ED5]"
               />
               <p className="mt-1 text-[11px] text-gray-400">
-                A CV exported from this app is a picture of a page, not text —
-                import the original instead.
+                {t('exportWarning')}
               </p>
             </div>
 
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">
-                Or paste text — a LinkedIn profile, say
+                {t('pasteLabel')}
               </label>
               <textarea
                 value={pasted}
@@ -437,7 +458,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
 
             <div>
               <div className="mb-2 flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-700">Read</span>
+                <span className="text-xs font-medium text-gray-700">{t('read')}</span>
                 <div className="inline-flex overflow-hidden rounded border border-gray-200">
                   <button
                     type="button"
@@ -448,7 +469,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                         : "bg-white text-gray-600 hover:bg-gray-50"
                     }`}
                   >
-                    The whole CV
+                    {t('wholeCv')}
                   </button>
                   <button
                     type="button"
@@ -459,7 +480,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                         : "bg-[#65B7FF] text-white"
                     }`}
                   >
-                    Only some sections
+                    {t('someSections')}
                   </button>
                 </div>
               </div>
@@ -477,7 +498,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                         onChange={() => toggleSection(section.key)}
                         className="accent-[#65B7FF]"
                       />
-                      {section.label}
+                      {sectionLabel(section.key)}
                     </label>
                   ))}
                 </div>
@@ -485,15 +506,16 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
 
               <p className="mt-1 text-[11px] text-gray-400">
                 {everything
-                  ? "Seven passes, one request each — a slow model cannot fail the whole import."
-                  : "One pass per box, so correcting one section costs one section."}
+                  ? t('allPassesHint')
+                  : t('somePassesHint')}
               </p>
             </div>
 
             {stage.name === "failed" && (
-              <p className="rounded bg-red-50 p-3 text-xs text-red-700">
-                {stage.error}
-              </p>
+              <LocalizedError
+                error={stage.error}
+                className="rounded bg-red-50 p-3 text-xs text-red-700"
+              />
             )}
 
             <div className="flex justify-end gap-2">
@@ -502,7 +524,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                 onClick={onClose}
                 className="rounded px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100"
               >
-                Cancel
+                {t('cancel')}
               </button>
               <button
                 type="button"
@@ -510,7 +532,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                 disabled={!hasSources || chosen.size === 0}
                 className="rounded bg-[#65B7FF] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#529ED5] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
               >
-                Read CV
+                {t('readCv')}
               </button>
             </div>
           </div>
@@ -550,20 +572,20 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                             : "text-gray-700"
                       }
                     >
-                      {section.label}
+                      {sectionLabel(section.key)}
                     </span>
-                    {entry.detail && (
-                      <span className="truncate text-[11px] text-red-500">
-                        {entry.detail}
-                      </span>
+                    {entry.error && (
+                      <LocalizedError
+                        error={entry.error}
+                        className="min-w-0 truncate text-[11px] text-red-500"
+                      />
                     )}
                   </li>
                 );
               })}
             </ul>
             <p className="text-[11px] text-gray-400">
-              One pass per section, so a slow model cannot fail the whole import.
-              Work experience is the long one.
+              {t('progressHint')}
             </p>
           </div>
         )}
@@ -586,15 +608,21 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
               */
               <div className="rounded bg-amber-50 p-3 text-xs text-amber-800">
                 <p>
-                  <strong>{stage.result.degraded.join(", ")} did not complete.</strong>{" "}
-                  Those rows read as empty below because the step failed, not
-                  because your CV has none.
+                  <strong>
+                    {t('degradedTitle', {
+                      sections: stage.result.degraded
+                        .map((value) =>
+                          SECTIONS.some((section) => section.key === value)
+                            ? sectionLabel(value as SectionKey)
+                            : value
+                        )
+                        .join(', ')
+                    })}
+                  </strong>{' '}
+                  {t('degradedExplanation')}
                 </p>
                 <p className="mt-1.5">
-                  Retrying the same section helps only if it failed once. If it
-                  keeps failing, the model is the problem rather than the CV —
-                  set a smaller extraction model in Settings and read that
-                  section again.
+                  {t('degradedAdvice')}
                 </p>
               </div>
             )}
@@ -612,9 +640,9 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-gray-200 text-left text-gray-400">
-                  <th className="pb-1 font-medium">Section</th>
-                  <th className="pb-1 text-right font-medium">Here now</th>
-                  <th className="pb-1 text-right font-medium">Found</th>
+                  <th className="pb-1 font-medium">{t('tableSection')}</th>
+                  <th className="pb-1 text-right font-medium">{t('tableCurrent')}</th>
+                  <th className="pb-1 text-right font-medium">{t('tableFound')}</th>
                 </tr>
               </thead>
               <tbody className="text-gray-700">
@@ -624,21 +652,23 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                   are none" — and a narrowed run has not earned it.
                 */}
                 <tr className="border-b border-gray-100">
-                  <td className="py-1">Name</td>
+                  <td className="py-1">{t('name')}</td>
                   <td className="py-1 text-right">{cvDocument.personal.name || "—"}</td>
                   <td className="py-1 text-right">
                     {stage.result.read.includes("personal") ? (
                       stage.result.document.personal.name || "—"
                     ) : (
-                      <span className="text-gray-300">not asked</span>
+                      <span className="text-gray-300">{t('notAsked')}</span>
                     )}
                   </td>
                 </tr>
-                {Object.entries(counts(stage.result.document)).map(([label, found]) => {
-                  const asked = stage.result.read.includes(ROW_SECTION[label]);
+                {(Object.entries(counts(stage.result.document)) as [CountKey, number][]).map(([label, found]) => {
+                  const asked = stage.result.read.includes(ROW_SECTION[label] as SectionKey);
                   return (
                     <tr key={label} className="border-b border-gray-100">
-                      <td className={`py-1 ${asked ? "" : "text-gray-300"}`}>{label}</td>
+                      <td className={`py-1 ${asked ? "" : "text-gray-300"}`}>
+                        {t(`rows.${label}`)}
+                      </td>
                       <td className="py-1 text-right">
                         {current[label as keyof typeof current]}
                       </td>
@@ -647,7 +677,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                           !asked ? "text-gray-300" : found === 0 ? "text-amber-600" : ""
                         }`}
                       >
-                        {asked ? found : "not asked"}
+                        {asked ? found : t('notAsked')}
                       </td>
                     </tr>
                   );
@@ -656,8 +686,10 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
             </table>
 
             <p className="text-[11px] text-gray-400">
-              Read from {stage.result.sources.map((s) => s.reference).join(", ")} in{" "}
-              {(stage.result.elapsedMs / 1000).toFixed(0)}s.
+              {t('readSummary', {
+                sources: stage.result.sources.map((s) => s.reference).join(', '),
+                seconds: (stage.result.elapsedMs / 1000).toFixed(0)
+              })}
             </p>
 
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
@@ -666,7 +698,7 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                 onClick={reset}
                 className="mr-auto rounded px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100"
               >
-                Start over
+                {t('startOver')}
               </button>
               <button
                 type="button"
@@ -674,32 +706,30 @@ export function CVImportModal({ isOpen, onClose }: CVImportModalProps) {
                 disabled={isEmptyReport(merged.report)}
                 title={
                   isEmptyReport(merged.report)
-                    ? "Everything found is already in your CV."
-                    : `Adds ${summarise(merged.report)}.`
+                    ? t('everythingPresent')
+                    : t('adds', { items: summarise(merged.report) })
                 }
                 className="rounded border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
               >
                 {isEmptyReport(merged.report)
-                  ? "Nothing to fill"
-                  : `Fill gaps — adds ${summarise(merged.report)}`}
+                  ? t('nothingToFill')
+                  : t('fillGaps', { items: summarise(merged.report) })}
               </button>
               <button
                 type="button"
                 onClick={() => replacement && apply(replacement)}
                 title={
                   stage.result.read.length === SECTIONS.length
-                    ? "Overwrites the whole CV with what was read."
-                    : `Overwrites only: ${stage.result.read
-                        .map((key) => SECTIONS.find((s) => s.key === key)?.label)
-                        .join(", ")}. Everything else is left alone.`
+                    ? t('overwriteWhole')
+                    : t('overwriteSome', {
+                        sections: stage.result.read.map(sectionLabel).join(', ')
+                      })
                 }
                 className="rounded bg-[#65B7FF] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#529ED5]"
               >
                 {stage.result.read.length === SECTIONS.length
-                  ? "Replace this CV"
-                  : `Replace ${stage.result.read.length} section${
-                      stage.result.read.length > 1 ? "s" : ""
-                    }`}
+                  ? t('replaceCv')
+                  : t('replaceSections', { count: stage.result.read.length })}
               </button>
             </div>
           </div>

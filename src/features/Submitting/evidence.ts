@@ -11,7 +11,8 @@ import type {
   EvidenceProposalResponse,
   OfferSnapshot,
   ProposedBullet,
-  SanitizedCvCatalog
+  SanitizedCvCatalog,
+  VariantStalenessReason
 } from './types';
 
 const clone = <T>(value: T): T =>
@@ -654,14 +655,14 @@ export const variantStalenessReasons = (
   liveCv: CvDocument,
   liveOffer: OfferSnapshot,
   language: Locale
-): string[] => {
-  const reasons: string[] = [];
-  if (variant.meta.language !== language) reasons.push('application language changed');
+): VariantStalenessReason[] => {
+  const reasons: VariantStalenessReason[] = [];
+  if (variant.meta.language !== language) reasons.push('application-language');
   if (variant.source.cvFingerprint !== fingerprintCv(liveCv)) {
-    reasons.push('master CV changed');
+    reasons.push('master-cv');
   }
   if (variant.source.offerFingerprint !== fingerprintOffer(liveOffer)) {
-    reasons.push('job offer changed');
+    reasons.push('job-offer');
   }
   return reasons;
 };
@@ -683,7 +684,7 @@ export const buildVariantChanges = (variant: EvidenceCvVariant): EvidenceChange[
   if (variant.proposal.headline.text.trim() !== variant.source.cv.skills.role.trim()) {
     changes.push({
       id: 'headline',
-      label: 'Target headline',
+      labelKey: 'headline',
       before: variant.source.cv.skills.role,
       after: variant.proposal.headline.text,
       evidence: evidenceText(variant, variant.proposal.headline.evidenceIds),
@@ -694,7 +695,8 @@ export const buildVariantChanges = (variant: EvidenceCvVariant): EvidenceChange[
   variant.proposal.summaryClaims.forEach((claim, index) =>
     changes.push({
       id: `summary:${index}`,
-      label: `Summary sentence ${index + 1}`,
+      labelKey: 'summary',
+      labelValues: { number: index + 1 },
       before: index === 0 ? variant.source.cv.role_description : '',
       after: claim.text,
       evidence: evidenceText(variant, claim.evidenceIds),
@@ -705,7 +707,7 @@ export const buildVariantChanges = (variant: EvidenceCvVariant): EvidenceChange[
 
   changes.push({
     id: 'skills',
-    label: 'Selected and reordered skills',
+    labelKey: 'skills',
     before: variant.source.cv.skills.groups.flatMap((group) => group.items).join(', '),
     after: variant.output.skills.groups.flatMap((group) => group.items).join(', '),
     evidence: evidenceText(
@@ -726,7 +728,11 @@ export const buildVariantChanges = (variant: EvidenceCvVariant): EvidenceChange[
     if (stableSerialize(selected) !== stableSerialize(sourceOrderForJob(catalog, entry.jobIndex))) {
       changes.push({
         id: `experience:${entry.jobIndex}:selection`,
-        label: `${variant.source.cv.experience[entry.jobIndex]?.company ?? 'Experience'} bullet selection/order`,
+        labelKey: 'bulletSelection',
+        labelValues: {
+          company:
+            variant.source.cv.experience[entry.jobIndex]?.company || ''
+        },
         before: variant.source.cv.experience[entry.jobIndex]?.highlights.join(' • ') ?? '',
         after: entry.bullets.map((bullet) => bullet.text).join(' • '),
         evidence: selected.map((id) => facts.get(id)?.text ?? id),
@@ -741,7 +747,11 @@ export const buildVariantChanges = (variant: EvidenceCvVariant): EvidenceChange[
       const source = facts.get(bullet.sourceEvidenceId);
       changes.push({
         id: `experience:${entry.jobIndex}:${bullet.sourceEvidenceId}`,
-        label: `${variant.source.cv.experience[entry.jobIndex]?.company ?? 'Experience'} bullet`,
+        labelKey: 'bullet',
+        labelValues: {
+          company:
+            variant.source.cv.experience[entry.jobIndex]?.company || ''
+        },
         before: source?.text ?? '',
         after: bullet.text,
         evidence: evidenceText(variant, bullet.evidenceIds),

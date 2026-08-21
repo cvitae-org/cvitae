@@ -10,6 +10,7 @@ import { EmptySection } from "../editing/EmptySection";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { addEntry, patchEntry, removeEntry } from "../../store";
 import { entryOrder, sectionOrder, trailingOrder } from "../../order";
+import { useCvDocumentTranslations } from '../../hooks/useCvDocumentTranslations';
 
 /**
  * Certificates.
@@ -24,7 +25,8 @@ import { entryOrder, sectionOrder, trailingOrder } from "../../order";
  * says so rather than reading as an unfilled field.
  */
 export function CVCertificates() {
-  const t = useTranslations("cv");
+  const documentT = useCvDocumentTranslations();
+  const t = useTranslations('cv.editor');
   const { document, locale } = useCvDocument();
   const certificates = document.certificates;
 
@@ -32,7 +34,7 @@ export function CVCertificates() {
     <MeasuredSection
       id="certificates"
       order={sectionOrder("certificates")}
-      title={t("sections.certificates")}
+      title={documentT("sections.certificates")}
       headerClassName="bg-white px-4"
     >
       {certificates.length === 0 ? (
@@ -43,9 +45,9 @@ export function CVCertificates() {
         >
           <div className="bg-white px-4 pb-2">
             <EmptySection
-              hint="Certificate — Issuer — Date"
+              hint={t('certificateHint')}
               onCreate={() => addEntry(locale, "certificates")}
-              label="Add the first certificate"
+              label={t('addFirstCertificate')}
             />
           </div>
         </MeasuredItem>
@@ -65,8 +67,8 @@ export function CVCertificates() {
                   onCommit={(value) =>
                     patchEntry(locale, "certificates", index, { name: value })
                   }
-                  placeholder="Certificate name"
-                  ariaLabel={`Certificate ${index + 1} name`}
+                  placeholder={t('certificateName')}
+                  ariaLabel={t('certificateNameAria', { number: index + 1 })}
                   className="flex-1 text-xs font-semibold text-gray-900 font-cv"
                 />
                 <span className="flex items-center gap-1 text-xs text-gray-500 font-cv whitespace-nowrap">
@@ -75,8 +77,8 @@ export function CVCertificates() {
                     onCommit={(value) =>
                       patchEntry(locale, "certificates", index, { started: value })
                     }
-                    placeholder="Issued"
-                    ariaLabel={`Certificate ${index + 1} issue date`}
+                    placeholder={t('issued')}
+                    ariaLabel={t('certificateIssuedAria', { number: index + 1 })}
                   />
                   <span aria-hidden="true">–</span>
                   <EditableText
@@ -87,13 +89,15 @@ export function CVCertificates() {
                       })
                     }
                     // Printed, so translated. See the note in CVExperience.
-                    placeholder={t("noExpiry")}
+                    placeholder={documentT("noExpiry")}
                     placeholderIsValue
-                    ariaLabel={`Certificate ${index + 1} expiry date, empty means it does not expire`}
+                    ariaLabel={t('certificateExpiryAria', { number: index + 1 })}
                   />
                   <EntryControls
                     onRemove={() => removeEntry(locale, "certificates", index)}
-                    removeLabel={`Remove ${entry.name || "this certificate"}`}
+                    removeLabel={t('removeCertificate', {
+                      name: entry.name || t('thisCertificate')
+                    })}
                   />
                 </span>
               </div>
@@ -104,8 +108,8 @@ export function CVCertificates() {
                 onCommit={(value) =>
                   patchEntry(locale, "certificates", index, { issuer: value })
                 }
-                placeholder="Issuer"
-                ariaLabel={`Certificate ${index + 1} issuer`}
+                placeholder={t('issuer')}
+                ariaLabel={t('certificateIssuerAria', { number: index + 1 })}
                 className="text-xs text-gray-600 font-cv"
               />
             </div>
@@ -122,7 +126,7 @@ export function CVCertificates() {
           <div className="bg-white px-4 pb-2">
             <EntryControls
               onAdd={() => addEntry(locale, "certificates")}
-              addLabel="Add a certificate"
+              addLabel={t('addCertificate')}
             />
           </div>
         </MeasuredItem>

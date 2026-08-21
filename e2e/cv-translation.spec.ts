@@ -92,7 +92,10 @@ test('fills selected Polish gaps from the stored English CV without overwriting 
     });
   });
 
-  await page.goto('/pl');
+  await page.goto('/');
+  await page.getByRole('button', {
+    name: 'Switch the CV document to PL'
+  }).click();
   await installDocuments(page, { en: english, pl: targetPolish });
   await page.reload();
 

@@ -1,7 +1,8 @@
 "use client";
 
+import { useTranslations } from 'next-intl';
 import type { Submission, SubmissionStage } from '../types';
-import { stageLabels, stageOf } from '../types';
+import { stageOf } from '../types';
 import { removeSubmission, setActiveSubmission } from '../store';
 
 /**
@@ -32,12 +33,21 @@ export function SubmissionQueue({
   activeId,
   hydrated
 }: SubmissionQueueProps) {
+  const t = useTranslations('submitting');
+  const common = useTranslations('common');
+  const display = (value: string) =>
+    value === 'Unknown'
+      ? common('unknown')
+      : value === 'Not stated'
+        ? common('notStated')
+        : value;
+
   // An unread queue and an empty one look the same; only one of them should
   // be told to go and add something.
   if (!hydrated) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white px-6 py-12 text-center">
-        <p className="text-sm text-gray-400">Loading applications…</p>
+        <p className="text-sm text-gray-400">{t('queue.loading')}</p>
       </div>
     );
   }
@@ -45,10 +55,11 @@ export function SubmissionQueue({
   if (submissions.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
-        <p className="text-sm font-medium text-gray-700">Nothing queued yet</p>
+        <p className="text-sm font-medium text-gray-700">
+          {t('queue.emptyTitle')}
+        </p>
         <p className="mt-1 text-sm text-gray-500">
-          Open Job offer research and use the send icon on an offer to bring it
-          here.
+          {t('queue.emptyDescription')}
         </p>
       </div>
     );
@@ -59,6 +70,8 @@ export function SubmissionQueue({
       {submissions.map((submission) => {
         const stage = stageOf(submission);
         const isActive = submission.id === activeId;
+        const position = display(submission.offer.position);
+        const company = display(submission.offer.company);
 
         return (
           <li key={submission.id} className="relative">
@@ -83,16 +96,16 @@ export function SubmissionQueue({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold leading-tight text-gray-900">
-                      {submission.offer.position}
+                      {position}
                     </span>
                     <span className="mt-0.5 block truncate text-xs leading-tight text-gray-500">
-                      {submission.offer.company}
+                      {company}
                     </span>
                   </span>
                   <span
                     className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${stageStyles[stage]}`}
                   >
-                    {stageLabels[stage]}
+                    {t(`stages.${stage}`)}
                   </span>
                 </span>
               </button>
@@ -100,8 +113,11 @@ export function SubmissionQueue({
               <button
                 type="button"
                 onClick={() => removeSubmission(submission.id)}
-                title="Remove from the submitting list"
-                aria-label={`Remove ${submission.offer.position} at ${submission.offer.company} from the submitting list`}
+                title={t('queue.removeTitle')}
+                aria-label={t('queue.removeAria', {
+                  position,
+                  company
+                })}
                 className="mr-2 flex-shrink-0 rounded-md p-1 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
               >
                 <svg

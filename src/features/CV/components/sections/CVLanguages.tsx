@@ -10,6 +10,7 @@ import { EmptySection } from "../editing/EmptySection";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { addEntry, patchEntry, removeEntry } from "../../store";
 import { entryOrder, sectionOrder } from "../../order";
+import { useCvDocumentTranslations } from '../../hooks/useCvDocumentTranslations';
 
 /**
  * Spoken languages.
@@ -20,7 +21,8 @@ import { entryOrder, sectionOrder } from "../../order";
  * whatever the CV holds, including none.
  */
 export function CVLanguages() {
-  const t = useTranslations("cv");
+  const documentT = useCvDocumentTranslations();
+  const t = useTranslations('cv.editor');
   const { document, locale } = useCvDocument();
   const languages = document.languages;
 
@@ -28,7 +30,7 @@ export function CVLanguages() {
     <MeasuredSection
       id="languages"
       order={sectionOrder("languages")}
-      title={t("sections.languages")}
+      title={documentT("sections.languages")}
       headerClassName="bg-white px-4"
     >
       <MeasuredItem
@@ -44,8 +46,8 @@ export function CVLanguages() {
                 onCommit={(value) =>
                   patchEntry(locale, "languages", index, { name: value })
                 }
-                placeholder="Language"
-                ariaLabel={`Language ${index + 1} name`}
+                placeholder={t('language')}
+                ariaLabel={t('languageNameAria', { number: index + 1 })}
                 className="text-xs font-semibold text-gray-900 font-cv"
               />
               <span className="text-xs font-semibold text-gray-900 font-cv">:</span>
@@ -54,27 +56,29 @@ export function CVLanguages() {
                 onCommit={(value) =>
                   patchEntry(locale, "languages", index, { level: value })
                 }
-                placeholder="Level"
-                ariaLabel={`Language ${index + 1} level`}
+                placeholder={t('level')}
+                ariaLabel={t('languageLevelAria', { number: index + 1 })}
                 className="text-xs text-gray-700 font-cv"
               />
               <EntryControls
                 onRemove={() => removeEntry(locale, "languages", index)}
-                removeLabel={`Remove ${language.name || "language"}`}
+                removeLabel={t('removeLanguage', {
+                  name: language.name || t('thisLanguage')
+                })}
               />
             </div>
           ))}
 
           {languages.length === 0 ? (
             <EmptySection
-              hint="Language — Level"
+              hint={t('languageHint')}
               onCreate={() => addEntry(locale, "languages")}
-              label="Add the first language"
+              label={t('addFirstLanguage')}
             />
           ) : (
             <EntryControls
               onAdd={() => addEntry(locale, "languages")}
-              addLabel="Add a language"
+              addLabel={t('addLanguage')}
             />
           )}
         </div>

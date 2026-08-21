@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { LanguageModel } from 'ai';
+import { providerErrorDetail } from '@/libs/ai/errors';
 import {
   offerRequirementCategories,
   offerRequirementPriorities,
@@ -190,7 +191,23 @@ export type AnalyzeResult = {
   degraded: AgentName[];
 };
 
-export class OfferAnalysisError extends Error {}
+/**
+ * A critical agent failed.
+ *
+ * Carries the original rejection as `cause`. Without it the route sees only a
+ * message, and a 429 arriving through here was reported as a generic analysis
+ * failure — the status code, and with it the only advice worth giving, was lost
+ * at this boundary while the route's rate-limit branch sat unreachable below.
+ */
+export class OfferAnalysisError extends Error {
+  readonly agent: string;
+
+  constructor(agent: string, message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'OfferAnalysisError';
+    this.agent = agent;
+  }
+}
 
 /**
  * Runs tasks with at most `limit` in flight.
@@ -285,7 +302,12 @@ export const analyzeOffer = async ({
 
     if (agent.critical) {
       throw new OfferAnalysisError(
-        `The "${agent.name}" step failed: ${String(result.reason?.message ?? result.reason).slice(0, 160)}`
+        agent.name,
+        `The "${agent.name}" step failed: ${
+          providerErrorDetail(result.reason) ??
+          String(result.reason?.message ?? result.reason)
+        }`.slice(0, 400),
+        { cause: result.reason }
       );
     }
 

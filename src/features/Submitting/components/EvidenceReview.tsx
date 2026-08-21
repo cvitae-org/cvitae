@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo, useState } from 'react';
-import type { EvidenceChange, EvidenceCvVariant } from '../types';
+import { useFormatter, useTranslations } from 'next-intl';
+import { LocalizedError } from '@/components/LocalizedError';
+import type { ErrorDescriptor } from '@/libs/i18n/errors';
+import type {
+  EvidenceChange,
+  EvidenceCvVariant,
+  VariantStalenessReason
+} from '../types';
 import {
   buildVariantChanges,
   EvidenceValidationError,
@@ -26,11 +33,19 @@ function ChangeCard({
   frozen: boolean;
 }) {
   const [draft, setDraft] = useState(change.after);
+  const t = useTranslations('submitting.review');
+  const labelValues = {
+    ...change.labelValues,
+    company:
+      change.labelValues?.company || t('changes.experience')
+  };
 
   return (
     <article className="rounded-lg border border-gray-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
-        <h4 className="text-xs font-semibold text-gray-800">{change.label}</h4>
+        <h4 className="text-xs font-semibold text-gray-800">
+          {t(`changes.${change.labelKey}`, labelValues)}
+        </h4>
         <label className="flex items-center gap-1.5 text-[11px] text-gray-600">
           <input
             type="checkbox"
@@ -39,19 +54,19 @@ function ChangeCard({
             onChange={() => toggleVariantChange(submissionId, change.id)}
             className="rounded border-gray-300 text-[#65B7FF] focus:ring-[#65B7FF]"
           />
-          Accepted
+          {t('accepted')}
         </label>
       </div>
 
       <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-gray-400">
-        Before
+        {t('before')}
       </p>
       <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-gray-500">
-        {change.before || 'Not present'}
+        {change.before || t('notPresent')}
       </p>
 
       <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-gray-400">
-        After
+        {t('after')}
       </p>
       {change.editable && !frozen ? (
         <textarea
@@ -66,14 +81,14 @@ function ChangeCard({
         />
       ) : (
         <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-gray-800">
-          {change.after || 'Removed from this variant'}
+          {change.after || t('removed')}
         </p>
       )}
 
       {change.evidence.length > 0 && (
         <div className="mt-2 rounded-md bg-green-50 px-2.5 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700">
-            CV evidence
+            {t('cvEvidence')}
           </p>
           {change.evidence.map((item, index) => (
             <p key={`${index}-${item}`} className="mt-0.5 text-[11px] leading-relaxed text-green-900">
@@ -85,7 +100,7 @@ function ChangeCard({
       {change.requirements.length > 0 && (
         <div className="mt-2 rounded-md bg-blue-50 px-2.5 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">
-            Matched vacancy requirement
+            {t('matchedRequirement')}
           </p>
           {change.requirements.map((item, index) => (
             <p key={`${index}-${item}`} className="mt-0.5 text-[11px] leading-relaxed text-blue-900">
@@ -106,10 +121,12 @@ export function EvidenceReview({
 }: {
   submissionId: string;
   variant: EvidenceCvVariant;
-  staleReasons: string[];
+  staleReasons: VariantStalenessReason[];
   sent: boolean;
 }) {
-  const [error, setError] = useState<string | null>(null);
+  const t = useTranslations('submitting');
+  const format = useFormatter();
+  const [error, setError] = useState<ErrorDescriptor | null>(null);
   const changes = useMemo(() => buildVariantChanges(variant), [variant]);
   const required = useMemo(() => requiredChangeIds(variant), [variant]);
   const accepted = useMemo(
@@ -118,11 +135,17 @@ export function EvidenceReview({
   );
   const remaining = required.filter((id) => !accepted.has(id)).length;
   const frozen = variant.reviewState === 'approved' || sent;
+  const staleText = staleReasons
+    .map((reason) => t(`stale.${reason}`))
+    .join(', ');
 
   const approve = () => {
     setError(null);
     if (staleReasons.length > 0) {
-      setError(`Regenerate first: ${staleReasons.join(', ')}.`);
+      setError({
+        code: 'submitting.evidenceRejected',
+        detail: t('review.regenerateFirst', { reasons: staleText })
+      });
       return;
     }
     try {
@@ -130,8 +153,11 @@ export function EvidenceReview({
     } catch (cause) {
       setError(
         cause instanceof EvidenceValidationError
-          ? cause.issues.join(' ')
-          : 'The variant could not be approved.'
+          ? {
+              code: 'submitting.evidenceRejected',
+              detail: cause.issues.join(' ')
+            }
+          : { code: 'submitting.materializeFailed' }
       );
     }
   };
@@ -146,7 +172,10 @@ export function EvidenceReview({
             </p>
             <p className="mt-0.5 text-[11px] text-gray-500">
               {variant.meta.provider} / {variant.meta.model} · {variant.meta.promptVersion} ·{' '}
-              {new Date(variant.meta.generatedAt).toLocaleString()}
+              {format.dateTime(new Date(variant.meta.generatedAt), {
+                dateStyle: 'medium',
+                timeStyle: 'short'
+              })}
             </p>
           </div>
           <span
@@ -156,17 +185,17 @@ export function EvidenceReview({
                 : 'bg-amber-100 text-amber-700'
             }`}
           >
-            {variant.reviewState}
+            {t(`review.status.${variant.reviewState}`)}
           </span>
         </div>
         {staleReasons.length > 0 && !sent && (
           <p className="mt-2 text-xs text-amber-700">
-            Stale: {staleReasons.join(', ')}. Regenerate and review before sending.
+            {t('review.stale', { reasons: staleText })}
           </p>
         )}
         {sent && (
           <p className="mt-2 text-xs text-gray-500">
-            This sent variant is frozen with its original CV and offer snapshots.
+            {t('review.sentFrozen')}
           </p>
         )}
       </div>
@@ -182,7 +211,9 @@ export function EvidenceReview({
       ))}</div>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-        <h4 className="text-xs font-semibold text-gray-800">Requirement evidence</h4>
+        <h4 className="text-xs font-semibold text-gray-800">
+          {t('review.requirementEvidence')}
+        </h4>
         <div className="mt-2 space-y-1.5">
           {variant.proposal.requirementMatches.map((match) => {
             const requirement = variant.source.offer.requirements.find(
@@ -195,7 +226,7 @@ export function EvidenceReview({
                   {match.explanation && <p className="text-gray-500">{match.explanation}</p>}
                 </div>
                 <span className="whitespace-nowrap rounded bg-white px-1.5 py-0.5 font-medium text-gray-600">
-                  {match.status}
+                  {t(`review.match.${match.status}`)}
                 </span>
               </div>
             );
@@ -210,7 +241,7 @@ export function EvidenceReview({
             onClick={() => acceptAllVariantChanges(submissionId)}
             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
-            Accept all changes
+            {t('review.acceptAll')}
           </button>
           <button
             type="button"
@@ -218,14 +249,21 @@ export function EvidenceReview({
             disabled={remaining > 0 || staleReasons.length > 0}
             className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
-            Approve variant
+            {t('review.approve')}
           </button>
           <span className="text-[11px] text-gray-500">
-            {remaining === 0 ? 'Every change reviewed.' : `${remaining} change(s) still need acceptance.`}
+            {remaining === 0
+              ? t('review.everyReviewed')
+              : t('review.remaining', { count: remaining })}
           </span>
         </div>
       )}
-      {error && <p className="text-xs text-red-700">{error}</p>}
+      {error && (
+        <LocalizedError
+          error={error}
+          className="text-xs text-red-700"
+        />
+      )}
     </div>
   );
 }

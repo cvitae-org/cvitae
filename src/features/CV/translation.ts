@@ -8,13 +8,13 @@ import type {
 } from './document';
 
 export const CV_TRANSLATION_SECTIONS = [
-  { key: 'personal', label: 'Name and contact' },
-  { key: 'role_description', label: 'Summary' },
-  { key: 'skills', label: 'Skills' },
-  { key: 'experience', label: 'Work experience' },
-  { key: 'education', label: 'Education' },
-  { key: 'certificates', label: 'Certificates' },
-  { key: 'languages', label: 'Languages' }
+  { key: 'personal' },
+  { key: 'role_description' },
+  { key: 'skills' },
+  { key: 'experience' },
+  { key: 'education' },
+  { key: 'certificates' },
+  { key: 'languages' }
 ] as const;
 
 export type CvTranslationSection =

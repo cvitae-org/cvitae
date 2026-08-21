@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AiConfigError, resolveModel } from '@/libs/ai/providers';
+import { apiError } from '@/libs/i18n/errors';
 
 /**
  * Drafts the email an application is actually sent in.
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
 
     if (!offer || typeof offer !== 'string') {
       return Response.json(
-        { error: 'The offer is required to draft an email.' },
+        { error: apiError('submitting.offerRequired') },
         { status: 400 }
       );
     }
@@ -83,8 +84,7 @@ export async function POST(req: Request) {
     if (!cvData || typeof cvData !== 'object') {
       return Response.json(
         {
-          error:
-            'No CV was sent with the request. The email is drafted from the CV document held in the browser; it is no longer in the translation files.'
+          error: apiError('submitting.cvRequired')
         },
         { status: 400 }
       );
@@ -148,14 +148,14 @@ ${typeof cvTitle === 'string' && cvTitle.trim() ? `${redactContacts(cvTitle)}\n`
     if (error instanceof AiConfigError) {
       console.error('AI provider is misconfigured:', error.message);
       return Response.json(
-        { error: 'AI provider is not configured' },
+        { error: apiError('providerConfig', undefined, error) },
         { status: 500 }
       );
     }
 
     console.error('Application email generation failed:', error);
     return Response.json(
-      { error: 'Failed to draft the application email' },
+      { error: apiError('submitting.emailFailed', undefined, error) },
       { status: 500 }
     );
   }

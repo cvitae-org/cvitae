@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useTranslations } from 'next-intl';
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { A4_DIMENSIONS } from "../constants";
@@ -24,7 +25,7 @@ interface UsePDFGeneratorOptions {
 interface UsePDFGeneratorReturn {
   generatePDF: () => Promise<void>;
   isGenerating: boolean;
-  error: string | null;
+  error: { text: string; detail?: string } | null;
   warnings: string[];
   progress: number; // 0-100
 }
@@ -89,7 +90,10 @@ const settle = () =>
     setTimeout(resolve, SETTLE_MS);
   });
 
-const waitForPreviewAssets = async (root: HTMLElement) => {
+/** Known, already-localized failures raised by this hook itself. */
+class PdfGenerationError extends Error {}
+
+const waitForPreviewAssets = async (root: HTMLElement, canvasError: string) => {
   if (document.fonts?.ready) await document.fonts.ready;
   await Promise.all(
     Array.from(root.querySelectorAll('img')).map(async (image) => {
@@ -100,7 +104,7 @@ const waitForPreviewAssets = async (root: HTMLElement) => {
   const invalidCanvas = Array.from(root.querySelectorAll('canvas')).find(
     (canvas) => canvas.width === 0 || canvas.height === 0
   );
-  if (invalidCanvas) throw new Error('A preview canvas is not ready.');
+  if (invalidCanvas) throw new PdfGenerationError(canvasError);
 };
 
 const pageSignature = (root: HTMLElement): string =>
@@ -201,8 +205,12 @@ const prepareCloneForExport = (page: HTMLElement): PageOverlay => {
 export function usePDFGenerator(
   options: UsePDFGeneratorOptions
 ): UsePDFGeneratorReturn {
+  const t = useTranslations('cv.pdf');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    text: string;
+    detail?: string;
+  } | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
 
@@ -230,12 +238,12 @@ export function usePDFGenerator(
       const root = Array.from(
         document.querySelectorAll<HTMLElement>('[data-cv-preview-root]')
       ).find((element) => element.dataset.cvPreviewRoot === previewId);
-      if (!root) throw new Error(`Designed preview "${previewId}" was not found.`);
-      await waitForPreviewAssets(root);
+      if (!root) throw new PdfGenerationError(t('previewMissing'));
+      await waitForPreviewAssets(root, t('canvasNotReady'));
       const firstSignature = pageSignature(root);
       await settle();
       if (!firstSignature || firstSignature !== pageSignature(root)) {
-        throw new Error('Pagination is still changing; wait a moment and retry.');
+        throw new PdfGenerationError(t('paginationChanging'));
       }
 
       const pages = Array.from(
@@ -246,7 +254,7 @@ export function usePDFGenerator(
         .filter(Boolean);
 
       if (pages.length === 0) {
-        throw new Error("No pages found. Make sure CV is in paginated mode.");
+        throw new PdfGenerationError(t('noPages'));
       }
 
       setProgress(10);
@@ -263,7 +271,7 @@ export function usePDFGenerator(
       // alone, exactly as they did before this existed.
       const hasFont = await registerTextLayerFont(pdf);
       if (!hasFont) {
-        throw new Error('The searchable text-layer font could not be loaded.');
+        throw new PdfGenerationError(t('textFontFailed'));
       }
 
       const allLines: TextLine[] = [];
@@ -324,20 +332,20 @@ export function usePDFGenerator(
         ignoredRecoveryText: allLines
           .filter((line) => line.recoveryOptional)
           .map((line) => line.text),
-        outputLabel: 'Designed PDF'
+        outputLabel: t('designedOutput')
       });
       if (!result.ok) {
-        throw new Error(
-          `Designed PDF failed preflight: ${result.issues
+        throw new PdfGenerationError(
+          t('preflightFailed', { issues: result.issues
             .filter((issue) => issue.severity === 'block')
-            .map((issue) => issue.message)
-            .join(' ')}`
+            .map((issue) => t(`issues.${issue.code}`, issue.values))
+            .join(' ') })
         );
       }
       setWarnings(
         result.issues
           .filter((issue) => issue.severity === 'warning')
-          .map((issue) => issue.message)
+          .map((issue) => t(`issues.${issue.code}`, issue.values))
       );
       saveBlob(blob, filename);
 
@@ -349,13 +357,21 @@ export function usePDFGenerator(
       }, 1000);
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to generate PDF";
-      setError(errorMessage);
+      setError({
+        text:
+          err instanceof PdfGenerationError
+            ? err.message
+            : t('generationFailed'),
+        detail:
+          err instanceof Error && !(err instanceof PdfGenerationError)
+            ? err.message
+            : undefined
+      });
       console.error("PDF generation error:", err);
     } finally {
       setIsGenerating(false);
     }
-  }, [filename, previewId, quality]);
+  }, [filename, previewId, quality, t]);
 
   return {
     generatePDF,

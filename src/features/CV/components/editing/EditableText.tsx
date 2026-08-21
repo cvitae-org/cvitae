@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 /**
  * A span you click to edit.
@@ -55,7 +56,7 @@ type EditableTextProps = {
 export function EditableText({
   value,
   onCommit,
-  placeholder = 'Not set',
+  placeholder,
   placeholderIsValue = false,
   className = '',
   multiline = false,
@@ -63,6 +64,8 @@ export function EditableText({
   ariaLabel,
   pdfLink
 }: EditableTextProps) {
+  const t = useTranslations('cv.editor');
+  const resolvedPlaceholder = placeholder ?? t('notSet');
   const ref = useRef<HTMLElement>(null);
   const [editing, setEditing] = useState(false);
 
@@ -123,11 +126,11 @@ export function EditableText({
       role="textbox"
       tabIndex={0}
       aria-label={ariaLabel}
-      aria-placeholder={placeholder}
+      aria-placeholder={resolvedPlaceholder}
       onFocus={() => setEditing(true)}
       onBlur={commit}
       onKeyDown={onKeyDown}
-      data-placeholder={placeholder}
+      data-placeholder={resolvedPlaceholder}
       // Both are read by the PDF export and by nothing else. This one marks a
       // placeholder that is only a hint: it is a `::before`, and html2canvas
       // resolves pseudo content into real nodes, so without a way to find these

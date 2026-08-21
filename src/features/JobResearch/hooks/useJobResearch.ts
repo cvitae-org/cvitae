@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useLocale } from 'next-intl';
+import { useFormatter, useLocale, useTranslations } from 'next-intl';
 import { readSseStream } from '@/libs/runtime/sse';
+import { errorFromApi, type ErrorDescriptor } from '@/libs/i18n/errors';
 import type { BoardFacts, JobRecord, OfferAnalysis } from '../types';
 import { MANUAL_LIST_ID } from '../types';
 import { createId, findByUrl, normalizeUrl } from '../storage';
@@ -23,8 +24,7 @@ export type BatchProgress = {
   failed: number;
 };
 
-export type ResearchError = {
-  message: string;
+export type ResearchError = ErrorDescriptor & {
   /** The board blocked us or served no text — a manual paste is the way out. */
   needsManualText: boolean;
 };
@@ -54,6 +54,8 @@ type ApiResponse = OfferAnalysis & {
 
 export const useJobResearch = () => {
   const locale = useLocale();
+  const format = useFormatter();
+  const common = useTranslations('common');
   const {
     data: { records: allRecords, lists, activeListId },
     // False until the stored offers have been read back out of IndexedDB.
@@ -98,7 +100,7 @@ export const useJobResearch = () => {
 
       if (!trimmedUrl && !trimmedText) {
         setError({
-          message: 'Paste a job offer URL to research.',
+          code: 'research.emptyUrl',
           needsManualText: false
         });
         return null;
@@ -113,7 +115,20 @@ export const useJobResearch = () => {
         const existing = findByUrl(manualRecords, trimmedUrl);
         if (existing) {
           setError({
-            message: `Already researched on ${new Date(existing.checked_at).toLocaleDateString()} — ${existing.company}, ${existing.position}. Use "Re-run" on that row to refresh it.`,
+            code: 'research.duplicate',
+            values: {
+              date: format.dateTime(new Date(existing.checked_at), {
+                dateStyle: 'medium'
+              }),
+              company:
+                existing.company === 'Unknown'
+                  ? common('unknown')
+                  : existing.company,
+              position:
+                existing.position === 'Unknown'
+                  ? common('unknown')
+                  : existing.position
+            },
             needsManualText: false
           });
           return null;
@@ -141,7 +156,7 @@ export const useJobResearch = () => {
 
         if (!response.ok) {
           setError({
-            message: data.error ?? 'Failed to analyse the job offer.',
+            ...errorFromApi(data, 'research.analysisFailed'),
             // A rate limit is not something a manual paste can work around.
             needsManualText:
               Boolean(data.needsManualText) && data.reason !== 'rate_limited'
@@ -180,7 +195,7 @@ export const useJobResearch = () => {
         return record;
       } catch {
         setError({
-          message: 'Could not reach the analysis service.',
+          code: 'research.serviceUnreachable',
           needsManualText: false
         });
         return null;
@@ -188,7 +203,7 @@ export const useJobResearch = () => {
         setIsResearching(false);
       }
     },
-    [locale, manualRecords, allRecords]
+    [locale, manualRecords, allRecords, format, common]
   );
 
   /**
@@ -211,8 +226,7 @@ export const useJobResearch = () => {
 
       if (analysable.length === 0) {
         setError({
-          message:
-            'None of these rows kept their posting text, so there is nothing to analyse without re-fetching. Use "Re-run" on a row to fetch it again.',
+          code: 'research.noStoredText',
           needsManualText: false
         });
         return null;
@@ -250,7 +264,7 @@ export const useJobResearch = () => {
         if (!response.ok || !response.body) {
           const detail = await response.json().catch(() => null);
           setError({
-            message: detail?.error ?? 'Could not start the batch.',
+            ...errorFromApi(detail, 'research.batchStart'),
             needsManualText: false
           });
           return null;
@@ -258,9 +272,9 @@ export const useJobResearch = () => {
 
         await readSseStream(response.body, (frame) => {
           if (frame.event === 'error') {
-            const payload = JSON.parse(frame.data) as { error?: string };
+            const payload = JSON.parse(frame.data) as unknown;
             setError({
-              message: payload.error ?? 'The batch failed.',
+              ...errorFromApi(payload, 'research.batchFailed'),
               needsManualText: false
             });
             return;
@@ -321,7 +335,7 @@ export const useJobResearch = () => {
         // written stays written.
         if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
           setError({
-            message: 'Lost contact with the analysis service.',
+            code: 'research.batchLost',
             needsManualText: false
           });
         }

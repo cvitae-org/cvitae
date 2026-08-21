@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from 'react';
+import { useFormatter, useTranslations } from 'next-intl';
 import type { ApplicationStatus, JobRecord } from '../types';
 import { applicationStatuses, NOT_STATED } from '../types';
 import type { Sort, SortKey } from '../filtering';
@@ -52,6 +53,7 @@ function SortHeader({
   defaultDirection?: Sort['direction'];
   className?: string;
 }) {
+  const t = useTranslations('research.table');
   const active = sort.key === sortKey;
 
   return (
@@ -76,7 +78,7 @@ function SortHeader({
               : { key: sortKey, direction: defaultDirection }
           )
         }
-        aria-label={`Sort by ${label}`}
+        aria-label={t('sortBy', { label })}
         className={`flex items-center gap-1 uppercase tracking-wider transition-colors hover:text-gray-600 ${
           active ? 'text-gray-600' : ''
         }`}
@@ -118,7 +120,17 @@ export function ResearchTable({
   sort,
   onSortChange
 }: ResearchTableProps) {
+  const t = useTranslations('research.table');
+  const statusT = useTranslations('research.statuses');
+  const workModeT = useTranslations('research.workModes');
+  const commonT = useTranslations('common');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const localizeSentinel = (value: string) =>
+    value === 'Unknown'
+      ? commonT('unknown')
+      : value === NOT_STATED
+        ? commonT('notStated')
+        : value;
 
   // The store reads asynchronously now, so an empty table means one of two
   // opposite things for the first moments of a page load. Telling someone with
@@ -126,7 +138,7 @@ export function ResearchTable({
   if (!hydrated) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white px-6 py-12 text-center">
-        <p className="text-sm text-gray-400">Loading offers…</p>
+        <p className="text-sm text-gray-400">{t('loading')}</p>
       </div>
     );
   }
@@ -135,12 +147,12 @@ export function ResearchTable({
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
         <p className="text-sm font-medium text-gray-700">
-          {filtered ? 'No offers match these filters' : 'No offers researched yet'}
+          {filtered ? t('noMatches') : t('none')}
         </p>
         <p className="mt-1 text-sm text-gray-500">
           {filtered
-            ? 'Widen or reset the filters above to see the rest of this tab.'
-            : 'Paste a job offer URL above to get started.'}
+            ? t('widen')
+            : t('start')}
         </p>
       </div>
     );
@@ -153,13 +165,13 @@ export function ResearchTable({
           <tr className="border-b border-gray-200 bg-gray-50/80 text-left text-[11px] uppercase tracking-wider text-gray-400">
             <th className="w-7 py-2 pl-2" />
             <SortHeader
-              label="Offer"
+              label={t('offer')}
               sortKey="position"
               sort={sort}
               onSortChange={onSortChange}
             />
             <SortHeader
-              label="Salary"
+              label={t('salary')}
               sortKey="salary"
               sort={sort}
               onSortChange={onSortChange}
@@ -168,9 +180,9 @@ export function ResearchTable({
               defaultDirection="desc"
               className="w-[132px]"
             />
-            <th className="w-[74px] py-2 pr-3 font-medium">Contract</th>
+            <th className="w-[74px] py-2 pr-3 font-medium">{t('contract')}</th>
             <SortHeader
-              label="Status"
+              label={t('status')}
               sortKey="status"
               sort={sort}
               onSortChange={onSortChange}
@@ -183,6 +195,8 @@ export function ResearchTable({
           {records.map((record) => {
             const isExpanded = expandedId === record.id;
             const isQueued = queuedIds.has(record.id);
+            const position = localizeSentinel(record.position);
+            const company = localizeSentinel(record.company);
 
             return (
               <Fragment key={record.id}>
@@ -196,7 +210,10 @@ export function ResearchTable({
                       type="button"
                       onClick={() => setExpandedId(isExpanded ? null : record.id)}
                       aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? 'Hide' : 'Show'} analysis for ${record.position} at ${record.company}`}
+                      aria-label={t(isExpanded ? 'hideAnalysis' : 'showAnalysis', {
+                        position,
+                        company
+                      })}
                       className="rounded p-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-600"
                     >
                       <svg
@@ -211,13 +228,17 @@ export function ResearchTable({
                   </td>
                   <td className="py-3 pr-3 align-middle">
                     <span className="block truncate text-[13px] font-semibold leading-tight text-gray-900">
-                      {record.position}
+                      {position}
                     </span>
                     <span className="mt-0.5 block truncate text-xs leading-tight text-gray-500">
-                      {record.company}
+                      {company}
                     </span>
                     <span className="mt-1 block truncate text-[11px] leading-tight text-gray-400">
-                      {[record.location, record.seniority, record.work_mode]
+                      {[
+                        localizeSentinel(record.location),
+                        localizeSentinel(record.seniority),
+                        workModeT(record.work_mode)
+                      ]
                         .filter(Boolean)
                         .join(' · ')}
                     </span>
@@ -226,7 +247,7 @@ export function ResearchTable({
                     {isStated(record.salary) ? (
                       record.salary
                     ) : (
-                      <span className="italic text-gray-400">{NOT_STATED}</span>
+                      <span className="italic text-gray-400">{commonT('notStated')}</span>
                     )}
                   </td>
                   <td className="py-3 pr-3 align-middle text-[11px] text-gray-600">
@@ -245,12 +266,15 @@ export function ResearchTable({
                           event.target.value as ApplicationStatus
                         )
                       }
-                      aria-label={`Application status for ${record.position} at ${record.company}`}
+                      aria-label={t('applicationStatus', {
+                        position,
+                        company
+                      })}
                       className="w-full rounded-md border border-gray-200 bg-white px-1.5 py-1 text-[11px] capitalize text-gray-600 transition-colors hover:border-gray-300 focus:border-transparent focus:ring-2 focus:ring-[#65B7FF]"
                     >
                       {applicationStatuses.map((status) => (
                         <option key={status} value={status}>
-                          {status}
+                          {statusT(status)}
                         </option>
                       ))}
                     </select>
@@ -266,14 +290,13 @@ export function ResearchTable({
                         onClick={() => onQueue(record)}
                         title={
                           isQueued
-                            ? 'Already in the submitting list — open it'
-                            : 'Add to the submitting list'
+                            ? t('queuedTitle')
+                            : t('queueTitle')
                         }
-                        aria-label={`${
-                          isQueued ? 'Open' : 'Add'
-                        } ${record.position} at ${record.company} ${
-                          isQueued ? 'in' : 'to'
-                        } the submitting list`}
+                        aria-label={t(isQueued ? 'queuedAria' : 'queueAria', {
+                          position,
+                          company
+                        })}
                         className={`rounded-md p-1 transition-colors ${
                           isQueued
                             ? 'text-green-500 hover:bg-green-50'
@@ -281,14 +304,14 @@ export function ResearchTable({
                         }`}
                       >
                         <svg
-                          className="h-4 w-4"
+                          className={`h-4 w-4${isQueued ? "" : " rotate-45"}`}
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
                           <path
                             strokeLinecap="round"
-                            strokeLinejoin="round"
+                            strokeLinejoin="miter"
                             strokeWidth={2}
                             d={
                               isQueued
@@ -308,8 +331,11 @@ export function ResearchTable({
                           type="button"
                           onClick={() => onAnalyse(record)}
                           disabled={isResearching}
-                          title="Fill the analysed fields from the stored text (no re-fetch)"
-                          aria-label={`Analyse stored text for ${record.position} at ${record.company}`}
+                          title={t('analyseTitle')}
+                          aria-label={t('analyseAria', {
+                            position,
+                            company
+                          })}
                           className="rounded-md p-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-[#65B7FF] disabled:opacity-40"
                         >
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -321,8 +347,11 @@ export function ResearchTable({
                         type="button"
                         onClick={() => onRerun(record)}
                         disabled={isResearching}
-                        title="Re-run the analysis"
-                        aria-label={`Re-run analysis for ${record.position} at ${record.company}`}
+                        title={t('rerunTitle')}
+                        aria-label={t('rerunAria', {
+                          position,
+                          company
+                        })}
                         className="rounded-md p-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -332,8 +361,11 @@ export function ResearchTable({
                       <button
                         type="button"
                         onClick={() => removeRecord(record.id)}
-                        title="Delete this row"
-                        aria-label={`Delete ${record.position} at ${record.company}`}
+                        title={t('deleteTitle')}
+                        aria-label={t('deleteAria', {
+                          position,
+                          company
+                        })}
                         className="rounded-md p-1 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -365,7 +397,13 @@ export function ResearchTable({
  * nothing about the contract type is itself useful when comparing offers.
  */
 function Fact({ label, value }: { label: string; value?: string }) {
+  const commonT = useTranslations('common');
   const missing = !value || value === NOT_STATED || value === 'Unknown';
+  const displayValue = missing
+    ? value === 'Unknown'
+      ? commonT('unknown')
+      : commonT('notStated')
+    : value;
 
   return (
     <div className="min-w-0">
@@ -374,36 +412,45 @@ function Fact({ label, value }: { label: string; value?: string }) {
       </dt>
       <dd
         className={`truncate text-xs ${missing ? 'italic text-gray-400' : 'text-gray-700'}`}
-        title={value}
+        title={displayValue}
       >
-        {value || NOT_STATED}
+        {displayValue}
       </dd>
     </div>
   );
 }
 
 function RecordDetail({ record }: { record: JobRecord }) {
+  const t = useTranslations('research.table');
+  const priorityT = useTranslations('research.requirements.priority');
+  const categoryT = useTranslations('research.requirements.category');
+  const commonT = useTranslations('common');
+  const format = useFormatter();
+
   return (
     <div className="border-t border-gray-200 bg-gray-50 px-4 py-4">
       <dl className="mb-4 grid grid-cols-2 gap-x-5 gap-y-2 sm:grid-cols-3">
-        <Fact label="Company type" value={record.company_type} />
-        <Fact label="Company size" value={record.company_size} />
-        <Fact label="Team" value={record.team} />
-        <Fact label="Salary" value={record.salary} />
-        <Fact label="Contract" value={record.contract_type} />
-        <Fact label="Length" value={record.engagement_length} />
-        <Fact label="Starts" value={record.start_date} />
-        <Fact label="Role" value={record.role_profile} />
+        <Fact label={t('facts.companyType')} value={record.company_type} />
+        <Fact label={t('facts.companySize')} value={record.company_size} />
+        <Fact label={t('facts.team')} value={record.team} />
+        <Fact label={t('facts.salary')} value={record.salary} />
+        <Fact label={t('facts.contract')} value={record.contract_type} />
+        <Fact label={t('facts.length')} value={record.engagement_length} />
+        <Fact label={t('facts.starts')} value={record.start_date} />
+        <Fact label={t('facts.role')} value={record.role_profile} />
         <Fact
-          label="Checked"
-          value={new Date(record.checked_at).toLocaleString()}
+          label={t('facts.checked')}
+          value={format.dateTime(new Date(record.checked_at), {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+          })}
         />
       </dl>
 
-      {record.ideal_candidate && (
+      {isStated(record.ideal_candidate) && (
         <div className="mb-4 border-t border-gray-200 pt-3">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Ideal candidate
+            {t('idealCandidate')}
           </h4>
           <p className="mt-1 text-sm leading-relaxed text-gray-700">
             {record.ideal_candidate}
@@ -414,7 +461,7 @@ function RecordDetail({ record }: { record: JobRecord }) {
       {record.responsibilities?.length > 0 && (
         <div className="mb-4 border-t border-gray-200 pt-3">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Responsibilities ({record.responsibilities.length})
+            {t('responsibilities', { count: record.responsibilities.length })}
           </h4>
           <ul className="mt-1.5 grid gap-1 sm:grid-cols-2">
             {record.responsibilities.map((item, index) => (
@@ -432,11 +479,11 @@ function RecordDetail({ record }: { record: JobRecord }) {
 
       <div className="border-t border-gray-200 pt-3">
         <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-          Required skills ({record.required_skills?.length ?? 0})
+          {t('requiredSkills', { count: record.required_skills?.length ?? 0 })}
         </h4>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {(record.required_skills ?? []).length === 0 ? (
-            <span className="text-sm text-gray-400">None listed</span>
+            <span className="text-sm text-gray-400">{t('noneListed')}</span>
           ) : (
             (record.required_skills ?? []).map((skill) => (
               <span
@@ -452,7 +499,7 @@ function RecordDetail({ record }: { record: JobRecord }) {
         {record.requirements.length > 0 && (
           <div className="mt-4 border-t border-gray-200 pt-3">
             <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              Cited requirement catalog ({record.requirements.length})
+              {t('requirementCatalog', { count: record.requirements.length })}
             </h4>
             <ul className="mt-2 space-y-2">
               {record.requirements.map((requirement) => (
@@ -462,10 +509,10 @@ function RecordDetail({ record }: { record: JobRecord }) {
                       {requirement.exactText}
                     </span>
                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
-                      {requirement.priority}
+                      {priorityT(requirement.priority)}
                     </span>
                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
-                      {requirement.category}
+                      {categoryT(requirement.category)}
                     </span>
                   </div>
                   <p className="mt-1 text-[11px] italic leading-relaxed text-gray-500">
@@ -489,12 +536,16 @@ function RecordDetail({ record }: { record: JobRecord }) {
             </a>
           )}
           <p>
-            Source:{' '}
-            {record.source_mode === 'url'
-              ? 'fetched from URL'
-              : 'pasted manually'}
-            {record.source_note ? ` — ${record.source_note}` : ''}
+            {t('source', {
+              mode: record.source_mode === 'url' ? t('fetched') : t('pasted')
+            })}
           </p>
+          {record.source_note && (
+            <details className="text-[11px] text-gray-400">
+              <summary className="cursor-pointer">{commonT('technicalDetails')}</summary>
+              <p className="mt-1 break-words">{record.source_note}</p>
+            </details>
+          )}
         </div>
       </div>
     </div>

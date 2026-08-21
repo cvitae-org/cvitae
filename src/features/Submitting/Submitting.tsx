@@ -1,14 +1,23 @@
 "use client";
 
+import { useMemo } from 'react';
+import { useTranslations } from 'next-intl';
 import { Sheet } from '@/components/Sheet';
 import { SheetNavigation } from '@/components/SheetNavigation';
 import { CVDownloadButton } from '@/features/CV/components/CVDownloadButton';
 import { AtsDownloadButton } from '@/features/CV/components/AtsDownloadButton';
+import {
+  PdfDownloadInfoPanel,
+  PdfDownloadMessagesProvider,
+  PdfDownloadWarningButton,
+} from '@/features/CV/components/PdfDownloadPanel';
+import { A4_DIMENSIONS } from '@/features/CV/constants';
 import { useCvDocument } from '@/features/CV/hooks/useCvDocument';
 import { useSubmitting } from './hooks/useSubmitting';
 import { useOfferAnalysis } from './hooks/useOfferAnalysis';
 import { SubmissionQueue } from './components/SubmissionQueue';
 import { SubmissionDetail } from './components/SubmissionDetail';
+import { SubmittingAuditBar } from './components/SubmittingAuditBar';
 import { cvFilename, TailoredCVPreview } from './components/TailoredCVPreview';
 import { stageOf } from './types';
 import { variantStalenessReasons } from './evidence';
@@ -23,6 +32,7 @@ import { variantStalenessReasons } from './evidence';
  */
 
 export function Submitting() {
+  const t = useTranslations('submitting');
   const {
     submissions,
     active,
@@ -45,21 +55,25 @@ export function Submitting() {
   } = useOfferAnalysis();
   const { document: liveCv } = useCvDocument(active?.language);
 
-  const pdfBlockedReasons = active?.cv
-    ? [
-        ...(active.cv.reviewState === 'approved'
-          ? []
-          : ['the evidence variant is not approved']),
-        ...(active.sentAt
-          ? []
-          : variantStalenessReasons(
-              active.cv,
-              liveCv,
-              active.offer,
-              active.language
-            ))
-      ]
-    : [];
+  const pdfBlockedReasons = useMemo(
+    () =>
+      active?.cv
+        ? [
+            ...(active.cv.reviewState === 'approved'
+              ? []
+              : [t('detail.pdfNotApproved')]),
+            ...(active.sentAt
+              ? []
+              : variantStalenessReasons(
+                active.cv,
+                liveCv,
+                active.offer,
+                active.language
+                ).map((reason) => t(`stale.${reason}`)))
+          ]
+        : [],
+    [active, liveCv, t]
+  );
 
   const counts = submissions.reduce(
     (totals, submission) => {
@@ -72,7 +86,8 @@ export function Submitting() {
   );
 
   return (
-    <div className="min-h-screen py-8">
+    <PdfDownloadMessagesProvider>
+    <div className="min-h-screen py-8 pb-28">
       <div className="flex items-start justify-center gap-4 px-4">
         <div className="sticky top-8 flex flex-col gap-2 print:hidden">
           <SheetNavigation />
@@ -82,14 +97,16 @@ export function Submitting() {
           <Sheet>
             <header className="mb-5">
               <h1 className="text-xl font-semibold text-gray-900">
-                Submitting
+                {t('title')}
               </h1>
               <p className="mt-0.5 text-sm text-gray-500">
                 {!hydrated || submissions.length === 0
-                  ? 'Offers you have decided to apply to, from a tailored CV to a sent email.'
-                  : `${submissions.length} application${
-                      submissions.length === 1 ? '' : 's'
-                    } · ${counts.ready} ready to send · ${counts.sent} sent`}
+                  ? t('emptyDescription')
+                  : t('stats', {
+                      applications: submissions.length,
+                      ready: counts.ready,
+                      sent: counts.sent
+                    })}
               </p>
             </header>
 
@@ -127,20 +144,25 @@ export function Submitting() {
                 hydrated &&
                 submissions.length > 0 && (
                   <p className="border-t border-gray-200 pt-4 text-sm text-gray-500">
-                    Pick one above to work on it.
+                    {t('pickApplication')}
                   </p>
                 )
               )}
 
               <p className="text-xs text-gray-400">
-                Stored in this browser only (IndexedDB), alongside the research
-                it came from.
+                {t('storageNote')}
               </p>
             </div>
           </Sheet>
 
           {active?.cv && (
-            <TailoredCVPreview cv={active.cv} language={active.language} />
+            <div
+              className="flex flex-col"
+              style={{ width: `${A4_DIMENSIONS.width}px` }}
+            >
+              <TailoredCVPreview cv={active.cv} language={active.language} />
+              <PdfDownloadInfoPanel className="mt-5" />
+            </div>
           )}
         </div>
 
@@ -165,10 +187,14 @@ export function Submitting() {
                 previewId={`submission-${active.cv.id}`}
                 blockedReasons={pdfBlockedReasons}
               />
+              <PdfDownloadWarningButton />
             </div>
           )}
         </div>
       </div>
+
+      <SubmittingAuditBar submissions={submissions} />
     </div>
+    </PdfDownloadMessagesProvider>
   );
 }

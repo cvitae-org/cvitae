@@ -1,4 +1,5 @@
 import { AiConfigError, resolveModel } from '@/libs/ai/providers';
+import { apiError } from '@/libs/i18n/errors';
 
 type AiModule = typeof import('ai');
 
@@ -42,15 +43,16 @@ export async function POST(req: Request) {
       reply: text.trim().slice(0, 40)
     });
   } catch (error) {
-    const message =
-      error instanceof AiConfigError
-        ? error.message
-        : error instanceof Error
-          ? error.message.slice(0, 200)
-          : 'The provider did not respond.';
-
     return Response.json(
-      { ok: false, error: message, latencyMs: Date.now() - startedAt },
+      {
+        ok: false,
+        error: apiError(
+          error instanceof AiConfigError ? 'providerConfig' : 'providerFailed',
+          undefined,
+          error
+        ),
+        latencyMs: Date.now() - startedAt
+      },
       { status: 200 }
     );
   }

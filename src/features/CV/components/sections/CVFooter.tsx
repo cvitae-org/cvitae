@@ -1,12 +1,12 @@
 "use client";
 
 import React from "react";
-import { useTranslations } from "next-intl";
 import { MeasuredItem } from "../layout/MeasuredItem";
 import { sectionOrder } from "../../order";
+import { useCvDocumentTranslations } from '../../hooks/useCvDocumentTranslations';
 
 export function CVFooter() {
-  const t = useTranslations("cv");
+  const t = useCvDocumentTranslations();
 
   return (
     <MeasuredItem id="cv-footer" section="footer" order={sectionOrder("footer")}>
@@ -18,4 +18,3 @@ export function CVFooter() {
     </MeasuredItem>
   );
 }
-

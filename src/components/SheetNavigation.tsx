@@ -2,11 +2,13 @@
 
 import { SheetNavLink } from "@/components/SheetNavLink";
 import { usePathname } from "@/libs/i18n/routing";
+import { useTranslations } from 'next-intl';
 
 const NAV_ITEMS = [
   {
     href: "/" as const,
-    title: "CV",
+    titleKey: "cv",
+    iconClassName: "",
     icon: (
       <path
         strokeLinecap="round"
@@ -18,7 +20,8 @@ const NAV_ITEMS = [
   },
   {
     href: "/research" as const,
-    title: "Job offer research",
+    titleKey: "research",
+    iconClassName: "",
     icon: (
       <path
         strokeLinecap="round"
@@ -30,11 +33,12 @@ const NAV_ITEMS = [
   },
   {
     href: "/submitting" as const,
-    title: "Submitting",
+    titleKey: "submitting",
+    iconClassName: "rotate-45",
     icon: (
       <path
         strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeLinejoin="miter"
         strokeWidth={2}
         d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
       />
@@ -42,7 +46,8 @@ const NAV_ITEMS = [
   },
   {
     href: "/settings" as const,
-    title: "Settings",
+    titleKey: "settings",
+    iconClassName: "",
     icon: (
       <>
         <path
@@ -64,21 +69,22 @@ const NAV_ITEMS = [
 
 export function SheetNavigation() {
   const pathname = usePathname();
+  const t = useTranslations('navigation');
 
   return (
     <nav
-      aria-label="App navigation"
+      aria-label={t('ariaLabel')}
       className="flex flex-col gap-2"
     >
-      {NAV_ITEMS.map(({ href, title, icon }) => (
+      {NAV_ITEMS.map(({ href, titleKey, icon, iconClassName }) => (
         <SheetNavLink
           key={href}
           href={href}
-          title={title}
+          title={t(titleKey)}
           active={pathname === href}
         >
           <svg
-            className="h-5 w-5"
+            className={`h-5 w-5${iconClassName ? ` ${iconClassName}` : ""}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
