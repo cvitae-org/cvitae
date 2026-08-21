@@ -16,6 +16,7 @@ import {
 } from '../evidence';
 import {
   acceptAllVariantChanges,
+  declineAllVariantChanges,
   approveEvidenceCV,
   editVariantChange,
   toggleVariantChange
@@ -54,7 +55,7 @@ function ChangeCard({
             onChange={() => toggleVariantChange(submissionId, change.id)}
             className="rounded border-gray-300 text-[#65B7FF] focus:ring-[#65B7FF]"
           />
-          {t('accepted')}
+          {t('applied')}
         </label>
       </div>
 
@@ -133,7 +134,9 @@ export function EvidenceReview({
     () => new Set(variant.acceptedChangeIds),
     [variant.acceptedChangeIds]
   );
-  const remaining = required.filter((id) => !accepted.has(id)).length;
+  // How many of the proposed changes are switched on, not how many are left to
+  // tick: a cleared box is a decision, and there is nothing outstanding about it.
+  const applied = required.filter((id) => accepted.has(id)).length;
   const frozen = variant.reviewState === 'approved' || sent;
   const staleText = staleReasons
     .map((reason) => t(`stale.${reason}`))
@@ -245,16 +248,26 @@ export function EvidenceReview({
           </button>
           <button
             type="button"
+            onClick={() => declineAllVariantChanges(submissionId)}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {t('review.declineAll')}
+          </button>
+          <button
+            type="button"
             onClick={approve}
-            disabled={remaining > 0 || staleReasons.length > 0}
+            // Only staleness blocks approval now. Declining every change is a
+            // legitimate answer to a proposal, not an unfinished review.
+            disabled={staleReasons.length > 0}
             className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {t('review.approve')}
           </button>
           <span className="text-[11px] text-gray-500">
-            {remaining === 0
-              ? t('review.everyReviewed')
-              : t('review.remaining', { count: remaining })}
+            {t('review.appliedCount', {
+              applied,
+              total: required.length
+            })}
           </span>
         </div>
       )}

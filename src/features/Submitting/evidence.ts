@@ -415,47 +415,105 @@ const factMap = (catalog: SanitizedCvCatalog) =>
   new Map(catalog.facts.map((fact) => [fact.id, fact]));
 
 /** Applies a validated proposal without giving it access to protected fields. */
+const sourceOrderForJob = (catalog: SanitizedCvCatalog, jobIndex: number) =>
+  catalog.facts
+    .filter(
+      (fact) => fact.kind === 'experience-bullet' && fact.jobIndex === jobIndex
+    )
+    .sort((left, right) => (left.bulletIndex ?? 0) - (right.bulletIndex ?? 0))
+    .map((fact) => fact.id);
+
+/**
+ * Which proposed changes to apply, by change id, or null for all of them.
+ *
+ * `null` is what generation uses, before anything has been reviewed. A set is
+ * what the review panel uses: a change the reader has switched off falls back
+ * to the source CV's own wording, which is the one substitution that is always
+ * safe — it is the user's own writing, already in the document this variant was
+ * derived from. Every string in the output is therefore either cited and
+ * proposed, or verbatim from the CV. Nothing else can get in.
+ */
+export type ChangeDecisions = ReadonlySet<string> | null;
+
+const applies = (decisions: ChangeDecisions, id: string): boolean =>
+  decisions === null || decisions.has(id);
+
 export const materializeEvidenceProposal = (
   source: CvDocument,
   proposal: EvidenceCvProposal,
-  catalog: SanitizedCvCatalog
+  catalog: SanitizedCvCatalog,
+  decisions: ChangeDecisions = null
 ): CvDocument => {
   const output = clone(source);
   const facts = factMap(catalog);
-  output.skills.role = proposal.headline.text.trim();
-  output.role_description = proposal.summaryClaims
-    .map((claim) => claim.text.trim())
-    .filter(Boolean)
-    .join(' ');
 
-  const groups = new Map<number, { label: string; items: string[] }>();
-  for (const selected of proposal.skills) {
-    const fact = facts.get(selected.evidenceId);
-    if (!fact || fact.kind !== 'skill' || fact.groupIndex === undefined) continue;
-    const group = groups.get(fact.groupIndex) ?? {
-      label: fact.groupLabel ?? '',
-      items: []
-    };
-    group.items.push(fact.text);
-    groups.set(fact.groupIndex, group);
+  output.skills.role = applies(decisions, 'headline')
+    ? proposal.headline.text.trim()
+    : source.skills.role;
+
+  const keptClaims = proposal.summaryClaims
+    .map((claim, index) => ({ claim, index }))
+    .filter(({ index }) => applies(decisions, `summary:${index}`))
+    .map(({ claim }) => claim.text.trim())
+    .filter(Boolean);
+
+  // Every claim switched off is a request to keep the summary as written, not
+  // a request for an empty one — dropping the last claim would otherwise blank
+  // a paragraph the reader never asked to remove.
+  output.role_description = keptClaims.length
+    ? keptClaims.join(' ')
+    : source.role_description;
+
+  if (applies(decisions, 'skills')) {
+    const groups = new Map<number, { label: string; items: string[] }>();
+    for (const selected of proposal.skills) {
+      const fact = facts.get(selected.evidenceId);
+      if (!fact || fact.kind !== 'skill' || fact.groupIndex === undefined) continue;
+      const group = groups.get(fact.groupIndex) ?? {
+        label: fact.groupLabel ?? '',
+        items: []
+      };
+      group.items.push(fact.text);
+      groups.set(fact.groupIndex, group);
+    }
+    output.skills.groups = [...groups.values()];
   }
-  output.skills.groups = [...groups.values()];
 
   const byJob = new Map(
     proposal.experience.map((entry) => [entry.jobIndex, entry.bullets])
   );
   output.experience = output.experience.map((job, jobIndex) => {
     const proposed = byJob.get(jobIndex);
+
+    // Omission means no proposed change. To remove every bullet the model
+    // must include the job with an explicit empty selection, which creates a
+    // visible before/after review card instead of a silent deletion.
+    if (!proposed) return job;
+
+    // The selection change is *which* bullets survive and in what order. It
+    // only exists as a decision when the two differ, so the order is compared
+    // before the decision is consulted — otherwise a job whose selection was
+    // never in question would revert for want of an id nobody was offered.
+    const selectionChanged =
+      stableSerialize(proposed.map((bullet) => bullet.sourceEvidenceId)) !==
+      stableSerialize(sourceOrderForJob(catalog, jobIndex));
+
+    // Refusing it returns the job whole, which also makes the per-bullet
+    // decisions inside it moot — there is no rewritten bullet left to keep.
+    if (selectionChanged && !applies(decisions, `experience:${jobIndex}:selection`)) {
+      return job;
+    }
+
     return {
       ...job,
-      // Omission means no proposed change. To remove every bullet the model
-      // must include the job with an explicit empty selection, which creates a
-      // visible before/after review card instead of a silent deletion.
-      highlights: proposed
-        ? proposed.map((bullet) => bullet.text.trim())
-        : job.highlights
+      highlights: proposed.map((bullet) =>
+        applies(decisions, `experience:${jobIndex}:${bullet.sourceEvidenceId}`)
+          ? bullet.text.trim()
+          : (facts.get(bullet.sourceEvidenceId)?.text ?? bullet.text).trim()
+      )
     };
   });
+
   output.updated_at = new Date().toISOString();
   return output;
 };
@@ -505,12 +563,14 @@ export const proposalMaterializationIssues = (
   source: CvDocument,
   output: CvDocument,
   proposal: EvidenceCvProposal,
-  language: Locale
+  language: Locale,
+  decisions: ChangeDecisions = null
 ): string[] => {
   const expected = materializeEvidenceProposal(
     source,
     proposal,
-    buildCvFactCatalog(source, language)
+    buildCvFactCatalog(source, language),
+    decisions
   );
   return stableSerialize(tailoredProjection(expected)) ===
     stableSerialize(tailoredProjection(output))
@@ -518,13 +578,6 @@ export const proposalMaterializationIssues = (
     : ['Materialized output does not match the reviewed proposal.'];
 };
 
-const sourceOrderForJob = (catalog: SanitizedCvCatalog, jobIndex: number) =>
-  catalog.facts
-    .filter(
-      (fact) => fact.kind === 'experience-bullet' && fact.jobIndex === jobIndex
-    )
-    .sort((left, right) => (left.bulletIndex ?? 0) - (right.bulletIndex ?? 0))
-    .map((fact) => fact.id);
 
 export const requiredChangeIds = (variant: EvidenceCvVariant): string[] => {
   const result: string[] = [];
@@ -576,7 +629,7 @@ export const createEvidenceVariant = ({
   if (protectedIssues.length > 0) throw new EvidenceValidationError(protectedIssues);
 
   const generatedAt = response.generatedAt || new Date().toISOString();
-  return {
+  const variant: EvidenceCvVariant = {
     version: 'evidence-v2',
     id: makeId(),
     source: {
@@ -598,6 +651,19 @@ export const createEvidenceVariant = ({
       language
     }
   };
+
+  /*
+   * Every change starts applied, and the review panel is where they are taken
+   * back off. The reverse — nothing applied until each box is ticked — makes
+   * the first thing anyone sees a preview of the document they already had,
+   * which reads as a generation that did nothing.
+   *
+   * It also has to match `output`, which was materialized with no decisions and
+   * therefore holds all of them: the approval check re-materializes from these
+   * ids and compares, so a variant claiming to have accepted nothing while
+   * showing everything would refuse to approve.
+   */
+  return { ...variant, acceptedChangeIds: requiredChangeIds(variant) };
 };
 
 export const rebuildVariant = (
@@ -609,7 +675,12 @@ export const rebuildVariant = (
   return {
     ...variant,
     proposal: clone(proposal),
-    output: materializeEvidenceProposal(variant.source.cv, proposal, catalog),
+    output: materializeEvidenceProposal(
+      variant.source.cv,
+      proposal,
+      catalog,
+      new Set(acceptedChangeIds)
+    ),
     acceptedChangeIds,
     reviewState: 'draft',
     approvedAt: undefined,
@@ -617,10 +688,21 @@ export const rebuildVariant = (
   };
 };
 
+/**
+ * Freezes the variant as it currently stands.
+ *
+ * It used to refuse until every proposed change had been ticked, which made the
+ * checkbox a record of having *looked* at a change rather than a decision about
+ * it: there was no way to keep one rewrite and decline the next, only a way to
+ * be blocked. A cleared box now means the source CV's own wording is used, and
+ * approving is allowed at any time — declining every change approves the CV
+ * unchanged, which is a legitimate answer to a tailoring proposal.
+ *
+ * The checks that remain are the ones about truthfulness rather than taste:
+ * the proposal must still be evidence-backed, protected fields untouched, and
+ * the output must still be exactly what these decisions produce.
+ */
 export const approveVariant = (variant: EvidenceCvVariant): EvidenceCvVariant => {
-  const needed = requiredChangeIds(variant);
-  const accepted = new Set(variant.acceptedChangeIds);
-  const missing = needed.filter((id) => !accepted.has(id));
   const catalog = buildCvFactCatalog(variant.source.cv, variant.meta.language);
   const issues = [
     ...validateEvidenceProposal(
@@ -633,12 +715,10 @@ export const approveVariant = (variant: EvidenceCvVariant): EvidenceCvVariant =>
       variant.source.cv,
       variant.output,
       variant.proposal,
-      variant.meta.language
+      variant.meta.language,
+      new Set(variant.acceptedChangeIds)
     )
   ];
-  if (missing.length > 0) {
-    issues.unshift(`Review and accept ${missing.length} remaining change(s).`);
-  }
   if (issues.length > 0) throw new EvidenceValidationError(issues);
 
   const approvedAt = new Date().toISOString();

@@ -116,6 +116,15 @@ export const setEvidenceCV = (id: string, cv: EvidenceCvVariant) => {
   );
 };
 
+/**
+ * Applies or withdraws one proposed change.
+ *
+ * Rebuilds the document rather than only recording the decision, because the
+ * preview beside this panel renders `cv.output`: a box cleared without
+ * re-materializing would leave the page showing a rewrite the reader has just
+ * declined, and the approval check — which re-materializes from these ids and
+ * compares — would then refuse the variant for a mismatch nobody could see.
+ */
 export const toggleVariantChange = (id: string, changeId: string) => {
   mapSubmissions(id, (submission) => {
     if (!submission.cv || submission.cv.reviewState === 'approved') return submission;
@@ -124,7 +133,7 @@ export const toggleVariantChange = (id: string, changeId: string) => {
     else accepted.add(changeId);
     return {
       ...submission,
-      cv: { ...submission.cv, acceptedChangeIds: [...accepted] }
+      cv: rebuildVariant(submission.cv, submission.cv.proposal, [...accepted])
     };
   });
 };
@@ -135,10 +144,23 @@ export const acceptAllVariantChanges = (id: string) => {
       ? submission
       : {
           ...submission,
-          cv: {
-            ...submission.cv,
-            acceptedChangeIds: requiredChangeIds(submission.cv)
-          }
+          cv: rebuildVariant(
+            submission.cv,
+            submission.cv.proposal,
+            requiredChangeIds(submission.cv)
+          )
+        }
+  );
+};
+
+/** The other end of "apply all": back to the CV exactly as it was written. */
+export const declineAllVariantChanges = (id: string) => {
+  mapSubmissions(id, (submission) =>
+    !submission.cv || submission.cv.reviewState === 'approved'
+      ? submission
+      : {
+          ...submission,
+          cv: rebuildVariant(submission.cv, submission.cv.proposal, [])
         }
   );
 };

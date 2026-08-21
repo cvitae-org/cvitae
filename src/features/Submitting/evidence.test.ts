@@ -121,16 +121,67 @@ describe('snapshot-scoped evidence variants', () => {
     expect(issues.join(' ')).toContain('inflates unsupported seniority');
   });
 
-  it('requires explicit acceptance, freezes approval, and resets approval after editing', () => {
+  /**
+   * The point of the change: a decision per change, not a gate on all of them.
+   * A cleared box falls back to the source CV's own wording, so the output is
+   * still only ever cited-and-proposed text or the user's own.
+   */
+  it('keeps the source wording for a change that was declined', () => {
     const variant = createEvidenceVariant({
       sourceCv: cvFixture(),
       sourceOffer: offerFixture(),
       language: 'en',
       response: response()
     });
-    expect(() => approveVariant(variant)).toThrow(/Review and accept/);
 
-    const reviewed = { ...variant, acceptedChangeIds: requiredChangeIds(variant) };
+    // The fixture rewrites the summary as two claims; the headline it leaves
+    // alone, so it is not a change at all and never appears as a decision.
+    expect(variant.acceptedChangeIds).toContain('summary:0');
+    expect(variant.acceptedChangeIds).toContain('summary:1');
+
+    const withoutFirstClaim = rebuildVariant(
+      variant,
+      variant.proposal,
+      variant.acceptedChangeIds.filter((id) => id !== 'summary:0')
+    );
+
+    // The declined claim is dropped; the one still ticked is still applied.
+    expect(withoutFirstClaim.output.role_description).toBe(
+      variant.proposal.summaryClaims[1].text
+    );
+    expect(() => approveVariant(withoutFirstClaim)).not.toThrow();
+  });
+
+  it('approves a variant with every change declined, leaving the CV as written', () => {
+    const variant = createEvidenceVariant({
+      sourceCv: cvFixture(),
+      sourceOffer: offerFixture(),
+      language: 'en',
+      response: response()
+    });
+
+    const declined = rebuildVariant(variant, variant.proposal, []);
+    const source = cvFixture();
+
+    expect(declined.output.skills.role).toBe(source.skills.role);
+    // Not blanked: declining every claim asks to keep the summary, not to lose it.
+    expect(declined.output.role_description).toBe(source.role_description);
+    expect(approveVariant(declined).reviewState).toBe('approved');
+  });
+
+  it('starts with every change applied, freezes approval, and resets it after editing', () => {
+    const variant = createEvidenceVariant({
+      sourceCv: cvFixture(),
+      sourceOffer: offerFixture(),
+      language: 'en',
+      response: response()
+    });
+
+    // A fresh variant is fully applied, so its preview is the tailored CV and
+    // approving needs no ceremony first.
+    expect(variant.acceptedChangeIds).toEqual(requiredChangeIds(variant));
+
+    const reviewed = variant;
     const approved = approveVariant(reviewed);
     expect(approved.reviewState).toBe('approved');
 

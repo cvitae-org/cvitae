@@ -11,7 +11,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/libs/runtime/client', () => ({
   runCapability: mocks.runCapability,
-  toRuntimeModel: mocks.toRuntimeModel
+  toRuntimeModel: mocks.toRuntimeModel,
+  // Not mocked away: the guard it drives is the difference between delegating
+  // a request and refusing it, so the real predicate runs against these bodies.
+  carriesClientKey: (override: { apiKey?: unknown } | undefined) =>
+    typeof override?.apiKey === 'string' && override.apiKey.trim() !== ''
 }));
 
 import { POST } from './route';

@@ -694,7 +694,6 @@
       "pdfNotApproved": "wariant oparty na dowodach nie został zatwierdzony"
     },
     "review": {
-      "accepted": "Zaakceptowana",
       "before": "Przed",
       "notPresent": "Brak",
       "after": "Po",
@@ -714,10 +713,10 @@
         "missing": "brak",
         "needs-confirmation": "wymaga potwierdzenia"
       },
-      "acceptAll": "Zaakceptuj wszystkie zmiany",
+      "acceptAll": "Zastosuj wszystkie zmiany",
+      "declineAll": "Odrzuć wszystkie",
+      "appliedCount": "Zostanie zastosowanych {applied} z {total} zmian.",
       "approve": "Zatwierdź wariant",
-      "everyReviewed": "Wszystkie zmiany zostały sprawdzone.",
-      "remaining": "{count, plural, one {# zmiana nadal wymaga akceptacji.} few {# zmiany nadal wymagają akceptacji.} many {# zmian nadal wymaga akceptacji.} other {# zmiany nadal wymaga akceptacji.}}",
       "regenerateFirst": "Najpierw wygeneruj ponownie: {reasons}.",
       "approvalFailed": "Nie udało się zatwierdzić wariantu.",
       "approvalRejected": "Wariant nie przeszedł lokalnej weryfikacji dowodów.",
@@ -728,7 +727,8 @@
         "bulletSelection": "{company} — wybór i kolejność punktów",
         "bullet": "{company} — punkt",
         "experience": "Doświadczenie"
-      }
+      },
+      "applied": "Zastosuj"
     },
     "audit": {
       "title": "Przegląd aplikacji",

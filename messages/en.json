@@ -694,7 +694,6 @@
       "pdfNotApproved": "the evidence variant is not approved"
     },
     "review": {
-      "accepted": "Accepted",
       "before": "Before",
       "notPresent": "Not present",
       "after": "After",
@@ -714,10 +713,10 @@
         "missing": "missing",
         "needs-confirmation": "needs confirmation"
       },
-      "acceptAll": "Accept all changes",
+      "acceptAll": "Apply all changes",
+      "declineAll": "Decline all",
+      "appliedCount": "{applied} of {total} changes will be applied.",
       "approve": "Approve variant",
-      "everyReviewed": "Every change reviewed.",
-      "remaining": "{count, plural, one {# change still needs acceptance.} other {# changes still need acceptance.}}",
       "regenerateFirst": "Regenerate first: {reasons}.",
       "approvalFailed": "The variant could not be approved.",
       "approvalRejected": "The variant did not pass local evidence checks.",
@@ -728,7 +727,8 @@
         "bulletSelection": "{company} bullet selection/order",
         "bullet": "{company} bullet",
         "experience": "Experience"
-      }
+      },
+      "applied": "Apply"
     },
     "audit": {
       "title": "Application review",
