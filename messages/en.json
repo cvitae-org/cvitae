@@ -691,7 +691,16 @@
       "blockerStale": "Regenerate the stale CV first: {reasons}.",
       "blockerMessage": "Write or draft the message first.",
       "blockerDestination": "This offer has no address and no link, so there is nowhere to send it. Add an address above.",
-      "pdfNotApproved": "the evidence variant is not approved"
+      "pdfNotApproved": "the evidence variant is not approved",
+      "regenerateSections": "Regenerate only",
+      "regenerateAllHint": "Nothing picked: the whole proposal is replaced.",
+      "regenerateSomeHint": "Only the picked parts are replaced. Your decisions on the rest are kept.",
+      "sections": {
+        "headline": "Headline",
+        "summary": "Summary",
+        "skills": "Skills",
+        "experience": "Experience"
+      }
     },
     "review": {
       "before": "Before",

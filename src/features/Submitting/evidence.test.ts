@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   approveVariant,
+  carryDecisions,
+  mergeProposal,
   buildCvFactCatalog,
   createEvidenceVariant,
   protectedFieldIssues,
@@ -167,6 +169,49 @@ describe('snapshot-scoped evidence variants', () => {
     // Not blanked: declining every claim asks to keep the summary, not to lose it.
     expect(declined.output.role_description).toBe(source.role_description);
     expect(approveVariant(declined).reviewState).toBe('approved');
+  });
+
+  /**
+   * Regenerating one paragraph must not silently redo the other four sections,
+   * nor reinstate a change the reader had already declined elsewhere.
+   */
+  it('adopts only the regenerated section and keeps decisions on the rest', () => {
+    const variant = createEvidenceVariant({
+      sourceCv: cvFixture(),
+      sourceOffer: offerFixture(),
+      language: 'en',
+      response: response()
+    });
+
+    const withoutSkills = rebuildVariant(
+      variant,
+      variant.proposal,
+      variant.acceptedChangeIds.filter((id) => id !== 'skills')
+    );
+
+    const fresh = proposalFixture();
+    fresh.summaryClaims[0].text = 'I build accessible React interfaces.';
+    fresh.headline.text = 'Completely Different Headline';
+
+    const merged = mergeProposal(withoutSkills.proposal, fresh, ['summary']);
+
+    expect(merged.summaryClaims[0].text).toBe('I build accessible React interfaces.');
+    // Untouched sections come from the variant being refreshed, not the new call.
+    expect(merged.headline).toEqual(withoutSkills.proposal.headline);
+    expect(merged.skills).toEqual(withoutSkills.proposal.skills);
+    expect(merged.experience).toEqual(withoutSkills.proposal.experience);
+
+    const next = rebuildVariant(withoutSkills, merged, withoutSkills.acceptedChangeIds);
+    const carried = carryDecisions(
+      requiredChangeIds(next),
+      requiredChangeIds(withoutSkills),
+      withoutSkills.acceptedChangeIds,
+      ['summary']
+    );
+
+    // The declined skills change stays declined; the regenerated summary is on.
+    expect(carried).not.toContain('skills');
+    expect(carried).toContain('summary:0');
   });
 
   it('starts with every change applied, freezes approval, and resets it after editing', () => {

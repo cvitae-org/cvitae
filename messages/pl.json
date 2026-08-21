@@ -691,7 +691,16 @@
       "blockerStale": "Najpierw wygeneruj ponownie nieaktualne CV: {reasons}.",
       "blockerMessage": "Najpierw napisz wiadomość lub utwórz jej wersję roboczą.",
       "blockerDestination": "Ta oferta nie ma adresu ani odnośnika, więc nie ma dokąd jej wysłać. Dodaj adres powyżej.",
-      "pdfNotApproved": "wariant oparty na dowodach nie został zatwierdzony"
+      "pdfNotApproved": "wariant oparty na dowodach nie został zatwierdzony",
+      "regenerateSections": "Wygeneruj ponownie tylko",
+      "regenerateAllHint": "Nic nie wybrano: cała propozycja zostanie zastąpiona.",
+      "regenerateSomeHint": "Zastąpione zostaną tylko wybrane części. Twoje decyzje co do reszty zostaną zachowane.",
+      "sections": {
+        "headline": "Nagłówek",
+        "summary": "Podsumowanie",
+        "skills": "Umiejętności",
+        "experience": "Doświadczenie"
+      }
     },
     "review": {
       "before": "Przed",

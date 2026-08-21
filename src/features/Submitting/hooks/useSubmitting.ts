@@ -22,8 +22,14 @@ import type {
 } from '../types';
 import {
   buildEvidenceRequest,
+  carryDecisions,
   createEvidenceVariant,
-  EvidenceValidationError
+  EVIDENCE_SECTIONS,
+  EvidenceValidationError,
+  mergeProposal,
+  rebuildVariant,
+  requiredChangeIds,
+  type EvidenceSection
 } from '../evidence';
 
 /**
@@ -140,9 +146,15 @@ export const useSubmitting = () => {
     []
   );
 
-  /** Builds a cited proposal and materializes only the permitted CV fields. */
+  /**
+   * Builds a cited proposal, or refreshes part of one.
+   *
+   * `sections` narrows what is adopted, not what is asked for — see
+   * `mergeProposal`. Passing every section, or none at all, replaces the
+   * variant outright, which is what the first generation does.
+   */
   const generateCv = useCallback(
-    async (submission: Submission) => {
+    async (submission: Submission, sections?: readonly EvidenceSection[]) => {
       const sourceCv = getCvState()[submission.language];
       const request = buildEvidenceRequest(
         sourceCv,
@@ -159,15 +171,51 @@ export const useSubmitting = () => {
           if (response.version !== 'evidence-v2' || !response.proposal) {
             throw new Error('Unexpected evidence proposal response.');
           }
-          setEvidenceCV(
-            submission.id,
-            createEvidenceVariant({
-              sourceCv,
-              sourceOffer: submission.offer,
-              language: submission.language,
-              response
-            })
+
+          const partial =
+            submission.cv &&
+            sections &&
+            sections.length > 0 &&
+            sections.length < EVIDENCE_SECTIONS.length;
+
+          if (!partial) {
+            setEvidenceCV(
+              submission.id,
+              createEvidenceVariant({
+                sourceCv,
+                sourceOffer: submission.offer,
+                language: submission.language,
+                response
+              })
+            );
+            return;
+          }
+
+          const current = submission.cv as NonNullable<Submission['cv']>;
+          const merged = mergeProposal(
+            current.proposal,
+            response.proposal,
+            sections
           );
+
+          // Rebuilt from the existing variant so its source snapshots, its id
+          // and the decisions on untouched sections all survive the refresh.
+          const previousRequired = requiredChangeIds(current);
+          const next = rebuildVariant(current, merged, current.acceptedChangeIds);
+
+          setEvidenceCV(submission.id, {
+            ...rebuildVariant(
+              current,
+              merged,
+              carryDecisions(
+                requiredChangeIds(next),
+                previousRequired,
+                current.acceptedChangeIds,
+                sections
+              )
+            ),
+            meta: { ...next.meta, provider: response.provider, model: response.model }
+          });
         }
       );
     },

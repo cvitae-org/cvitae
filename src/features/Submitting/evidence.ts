@@ -579,6 +579,84 @@ export const proposalMaterializationIssues = (
 };
 
 
+/**
+ * The parts of a proposal that can be regenerated on their own.
+ *
+ * Named after what they are on the page rather than after the field they live
+ * in: `summary` is the paragraph beside the portrait, which is the one people
+ * ask to redo most often and the one a whole regeneration used to take with it.
+ */
+export const EVIDENCE_SECTIONS = [
+  'headline',
+  'summary',
+  'skills',
+  'experience'
+] as const;
+export type EvidenceSection = (typeof EVIDENCE_SECTIONS)[number];
+
+/** Which section a review change id belongs to, for carrying decisions over. */
+export const sectionOfChangeId = (id: string): EvidenceSection => {
+  if (id === 'headline') return 'headline';
+  if (id === 'skills') return 'skills';
+  if (id.startsWith('summary:')) return 'summary';
+  return 'experience';
+};
+
+/**
+ * Adopts the named sections from a fresh proposal, keeping the rest.
+ *
+ * The model is still asked for a whole proposal — the schema requires one, and
+ * a partial prompt would need a second set of validators that could disagree
+ * with the first. What changes is how much of the answer is kept. Regenerating
+ * one paragraph therefore costs a full call, and buys back the four other
+ * decisions the reader had already made.
+ *
+ * `requirementMatches` always comes from the new call. It maps the vacancy's
+ * requirements onto catalogue evidence ids rather than onto anything in the
+ * proposal, so it stays true regardless of which sections were adopted, and the
+ * newer reading is the better one.
+ */
+export const mergeProposal = (
+  current: EvidenceCvProposal,
+  incoming: EvidenceCvProposal,
+  sections: readonly EvidenceSection[]
+): EvidenceCvProposal => {
+  const take = new Set(sections);
+  return clone({
+    headline: take.has('headline') ? incoming.headline : current.headline,
+    summaryClaims: take.has('summary')
+      ? incoming.summaryClaims
+      : current.summaryClaims,
+    skills: take.has('skills') ? incoming.skills : current.skills,
+    experience: take.has('experience') ? incoming.experience : current.experience,
+    requirementMatches: incoming.requirementMatches
+  });
+};
+
+/**
+ * Which changes should be applied after a partial regeneration.
+ *
+ * A regenerated section is new text nobody has ruled on, so it starts applied,
+ * like a fresh variant. A section left alone keeps whatever the reader decided
+ * about it — declining a bullet and then rewriting the summary should not
+ * quietly reinstate the bullet.
+ */
+export const carryDecisions = (
+  nextRequired: string[],
+  previousRequired: string[],
+  previousAccepted: string[],
+  regenerated: readonly EvidenceSection[]
+): string[] => {
+  const fresh = new Set(regenerated);
+  const known = new Set(previousRequired);
+  const accepted = new Set(previousAccepted);
+
+  return nextRequired.filter(
+    (id) =>
+      fresh.has(sectionOfChangeId(id)) || !known.has(id) || accepted.has(id)
+  );
+};
+
 export const requiredChangeIds = (variant: EvidenceCvVariant): string[] => {
   const result: string[] = [];
   if (variant.proposal.headline.text.trim() !== variant.source.cv.skills.role.trim()) {

@@ -18,7 +18,11 @@ import { patchApply, setLanguage } from '../store';
 import { reopenSubmission, sendSubmission } from '../queue';
 import { buildMailto, MAILTO_SAFE_BODY } from '../send';
 import type { PendingAction } from '../hooks/useSubmitting';
-import { variantStalenessReasons } from '../evidence';
+import {
+  EVIDENCE_SECTIONS,
+  type EvidenceSection,
+  variantStalenessReasons
+} from '../evidence';
 import { EvidenceReview } from './EvidenceReview';
 import { ReadinessPanel } from '@/features/CV/components/ReadinessPanel';
 
@@ -36,7 +40,10 @@ type SubmissionDetailProps = {
   submission: Submission;
   pending: PendingAction;
   error: ErrorDescriptor | null;
-  onGenerateCv: (submission: Submission) => void;
+  onGenerateCv: (
+    submission: Submission,
+    sections?: readonly EvidenceSection[]
+  ) => void;
   onDraftEmail: (submission: Submission) => void;
   onDismissError: () => void;
   /** The research row behind this offer, while it still exists. */
@@ -188,6 +195,12 @@ export function SubmissionDetail({
   const common = useTranslations('common');
   const format = useFormatter();
   const [copied, setCopied] = useState(false);
+
+  /**
+   * Which sections the next regeneration may replace. Empty means all of them,
+   * which is what regenerating meant before there was a choice.
+   */
+  const [sections, setSections] = useState<EvidenceSection[]>([]);
 
   const { offer, apply, cv } = submission;
   const display = (value: string) =>
@@ -443,9 +456,55 @@ export function SubmissionDetail({
           <ReadinessPanel document={cv?.output ?? cvDocument} variant={cv} />
         </div>
 
+        {/*
+          Which parts of an existing proposal a regeneration is allowed to
+          replace. Absent before the first generation, when there is nothing to
+          keep, and hidden once the variant is sent and frozen.
+        */}
+        {cv && !sent && (
+          <fieldset className="mt-3">
+            <legend className="text-xs font-medium text-gray-700">
+              {t('detail.regenerateSections')}
+            </legend>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {EVIDENCE_SECTIONS.map((section) => {
+                const picked = sections.includes(section);
+                return (
+                  <button
+                    key={section}
+                    type="button"
+                    onClick={() =>
+                      setSections((current) =>
+                        current.includes(section)
+                          ? current.filter((name) => name !== section)
+                          : [...current, section]
+                      )
+                    }
+                    aria-pressed={picked}
+                    className={`rounded px-2 py-1 text-[11px] transition-colors ${
+                      picked
+                        ? 'bg-[#65B7FF] text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {t(`detail.sections.${section}`)}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400">
+              {sections.length === 0
+                ? t('detail.regenerateAllHint')
+                : t('detail.regenerateSomeHint')}
+            </p>
+          </fieldset>
+        )}
+
         <button
           type="button"
-          onClick={() => onGenerateCv(submission)}
+          onClick={() =>
+            onGenerateCv(submission, cv && sections.length > 0 ? sections : undefined)
+          }
           disabled={busy || sent}
           className={`mt-3 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 ${
             cv
