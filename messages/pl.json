@@ -196,7 +196,7 @@
     },
     "portrait": {
       "title": "Portret",
-      "description": "Twoje zdjęcie i sposób, w jaki układa się w kadrze. Wszystko pozostaje w tej przeglądarce.",
+      "description": "Twoje zdjęcie, sposób, w jaki układa się w kadrze, i kształt kadrowania. Wszystko pozostaje w tej przeglądarce.",
       "imageUnreadable": "Nie udało się odczytać tego obrazu.",
       "previewAlt": "Podgląd portretu",
       "chooseImage": "Wybierz obraz",
@@ -206,6 +206,11 @@
       "zoom": "Powiększenie",
       "horizontal": "Poziomo",
       "vertical": "Pionowo",
+      "shape": "Kształt",
+      "preset": {
+        "soft": "Miękki",
+        "straight": "Prosty"
+      },
       "done": "Gotowe"
     },
     "pdf": {

@@ -196,7 +196,7 @@
     },
     "portrait": {
       "title": "Portrait",
-      "description": "Your photograph, and how it sits in the frame. Everything here stays in this browser.",
+      "description": "Your photograph, how it sits in the frame, and the shape it is cut to. Everything here stays in this browser.",
       "imageUnreadable": "That image could not be read.",
       "previewAlt": "Portrait preview",
       "chooseImage": "Choose an image",
@@ -206,6 +206,11 @@
       "zoom": "Zoom",
       "horizontal": "Horizontal",
       "vertical": "Vertical",
+      "shape": "Shape",
+      "preset": {
+        "soft": "Soft",
+        "straight": "Straight"
+      },
       "done": "Done"
     },
     "pdf": {

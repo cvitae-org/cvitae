@@ -75,15 +75,18 @@ export const PRESETS = {
   straight: { amplitude: 0, frequency: 1, rounding: 0 }
 } as const;
 
+export type PresetName = keyof typeof PRESETS;
+
 /**
- * Named shapes a stored CV may reference.
+ * The shapes offered in the portrait modal.
  *
- * No longer offered for selection: the portrait modal edits the picture, not
- * the silhouette. They stay because `clampShape` reads its defaults from here
- * and a document written when the presets were selectable must still render as
- * it did.
+ * Two, not five. `classic` is the original drawn curve and has no parameters
+ * behind it to move; `wave` and `arch` were only ever interesting alongside the
+ * depth and rounding sliders, which are gone. What is left is a choice between
+ * two silhouettes — the rest stay defined so a stored CV that references one
+ * still renders as it was written.
  */
-type PresetName = keyof typeof PRESETS;
+export const SELECTABLE_PRESET_NAMES = ['soft', 'straight'] as const satisfies readonly PresetName[];
 
 /** The viewBox every generated path is drawn in, matching the original asset. */
 export const SHAPE_WIDTH = 766;
@@ -313,6 +316,19 @@ export const setPortraitFraming = (
  * more, which is a WebP of a few tens of kilobytes, small enough that keeping
  * it in IndexedDB beside the CV is unremarkable.
  */
+/**
+ * Switches the silhouette.
+ *
+ * Takes a whole preset rather than individual parameters: the amplitude,
+ * frequency and rounding sliders are no longer offered, so every change that
+ * reaches here is one of the named shapes applied wholesale.
+ */
+export const setPortraitShape = (shape: Partial<PortraitShape>) =>
+  store.update((current) => ({
+    ...current,
+    shape: clampShape({ ...current.shape, ...shape })
+  }));
+
 export const downscaleImage = (file: File, maxSide = 640): Promise<string> =>
   new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);

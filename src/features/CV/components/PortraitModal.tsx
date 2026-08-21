@@ -10,9 +10,13 @@ import {
   backgroundSvgUrl,
   downscaleImage,
   portraitWidthRatio,
+  PRESETS,
+  SELECTABLE_PRESET_NAMES,
   setPortraitFraming,
   setPortraitImage,
+  setPortraitShape,
   shapeSvgUrl,
+  type PresetName,
 } from "../portrait";
 
 /**
@@ -22,12 +26,12 @@ import {
  * an edit to the repository rather than to the CV. It is a setting now, and
  * this is where it is set.
  *
- * The silhouette is not. It was adjustable here — presets plus depth, count and
- * rounding sliders — and those controls are gone: the shape is a decision about
- * how this CV looks that is made once, and offering four sliders for it beside
- * the one thing people actually come here to do made the picture harder to
- * change, not easier. The parameters remain in the store and still drive the
- * mask; nothing about the rendered CV changed.
+ * The silhouette is a choice between two named shapes, and no longer a set of
+ * sliders. Depth, lobe count and corner rounding were three more controls beside
+ * the one thing people actually come here to do, and they described a shape
+ * nobody tunes twice. Picking `soft` or `straight` applies a preset wholesale;
+ * the parameters behind them stay in the store, so a CV written when they were
+ * adjustable still renders exactly as it was.
  *
  * No model is involved in the image. "Make it fit" is a framing problem, and
  * framing is a crop: the reason a photograph sits badly in this mask is almost
@@ -220,6 +224,31 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
               />
             </fieldset>
 
+            <fieldset>
+              <legend className="mb-1 text-xs font-medium text-gray-700">
+                {t('shape')}
+              </legend>
+              <div className="flex flex-wrap gap-1.5">
+                {SELECTABLE_PRESET_NAMES.map((name: PresetName) => (
+                  <button
+                    key={name}
+                    type="button"
+                    // The whole preset, not just its name: the stored shape
+                    // keeps the parameters of whatever was chosen last, and
+                    // setting the label alone would leave a `straight` shape
+                    // still carrying a wave's amplitude.
+                    onClick={() => setPortraitShape({ preset: name, ...PRESETS[name] })}
+                    className={`rounded px-2 py-1 text-[11px] capitalize transition-colors ${
+                      shape.preset === name
+                        ? "bg-[#65B7FF] text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {t(`preset.${name}`)}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </div>
         </div>
 
