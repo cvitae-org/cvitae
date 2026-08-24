@@ -99,14 +99,14 @@
         "languages": "Languages"
       },
       "ongoing": "Present",
-      "noExpiry": "No expiry",
-      "footer": "For references and additional information, please feel free to contact me via phone or email."
+      "noExpiry": "No expiry"
     },
     "controls": {
       "import": "Import a CV from file",
       "translateGaps": "Translate gaps from the other CV language",
       "translateGapsTitle": "Fill {target} gaps from the {source} CV",
-      "switchDocumentLanguage": "Switch the CV document to {language}"
+      "switchDocumentLanguage": "Switch the CV document to {language}",
+      "consent": "Edit the closing clause"
     },
     "editor": {
       "notSet": "Not set",
@@ -215,6 +215,21 @@
       "waveDepth": "Depth",
       "waveCount": "Count",
       "cornerRounding": "Corner rounding",
+      "done": "Done"
+    },
+    "consent": {
+      "title": "Closing clause",
+      "description": "The line the CV ends on. It is part of the document, so each language keeps its own.",
+      "presets": "Standard wording",
+      "rodo": "Data-processing consent (RODO)",
+      "rodoHint": "Covers the data outside the Labour Code's list — on this CV, the photograph. Untick to end the CV without a clause.",
+      "future": "Future recruitment too",
+      "futureHint": "Extends the consent to being kept on file after this vacancy closes.",
+      "text": "Text",
+      "placeholder": "No clause — the CV ends at its last section.",
+      "presetNote": "Standard wording. Editing it here leaves the boxes clear; tick one again to restore it.",
+      "customNote": "Your own wording. Ticking a box above replaces it.",
+      "emptyNote": "The CV ends at its last section, with no clause and no rule beneath it.",
       "done": "Done"
     },
     "pdf": {

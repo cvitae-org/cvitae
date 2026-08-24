@@ -1,4 +1,5 @@
 import type { CvDocument } from '@/features/CV/document';
+import { consentClause } from '@/features/CV/consent';
 import type { OfferSnapshot, EvidenceCvProposal } from '@/features/Submitting/types';
 
 export const cvFixture = (language: 'en' | 'pl' = 'en'): CvDocument => ({
@@ -60,6 +61,7 @@ export const cvFixture = (language: 'en' | 'pl' = 'en'): CvDocument => ({
     { name: language === 'pl' ? 'Polski' : 'Polish', level: 'Native' },
     { name: language === 'pl' ? 'Angielski' : 'English', level: 'C1' }
   ],
+  consent: consentClause(language, { future: true }),
   sources: [{ kind: 'fixture', reference: 'cv', imported_at: '2026-01-01T00:00:00.000Z' }]
 });
 

@@ -1,5 +1,6 @@
 import type { Locale } from '@/libs/i18n/config';
 import { defaultLocale, locales } from '@/libs/i18n/config';
+import { defaultConsent } from './consent';
 import { fillLinkSlots, isLinkSlot } from './links';
 
 /**
@@ -108,6 +109,22 @@ export type CvDocument = {
   education: CvEducation[];
   certificates: CvCertificate[];
   languages: CvLanguage[];
+  /**
+   * The clause the CV closes with — RODO, or whatever was typed over it.
+   *
+   * Content and not interface, which is why it is here rather than in
+   * `messages/*.json` where it started. See `./consent` for what it says and
+   * why the empty string is a legitimate value rather than a missing one.
+   *
+   * The one field the runtime's `cvDocument.ts` has no counterpart for. A
+   * document that goes out to `extract_cv` and comes back loses it, which
+   * `parseDocument` cannot tell apart from a document written before the field
+   * existed — both arrive without the key, and both get the default back. That
+   * is the safe direction to be wrong in: an author who emptied the clause and
+   * then re-extracted their CV sees it return, which is visible on the page and
+   * one click to undo.
+   */
+  consent: string;
   /** Where each part came from, so a wrong-looking field can be traced. */
   sources: CvSource[];
 };
@@ -122,6 +139,7 @@ export const emptyDocument = (): CvDocument => ({
   education: [],
   certificates: [],
   languages: [],
+  consent: '',
   sources: []
 });
 
@@ -330,6 +348,13 @@ export const parseDocument = (
       name: text(entry.name),
       level: text(entry.level)
     })),
+    /*
+     * Absent and empty are different answers. No key at all is a document
+     * written before the clause was a field, and it printed one — so it gets
+     * the default and the page does not silently lose its footer. An empty
+     * string is somebody having cleared it on purpose, and survives.
+     */
+    consent: 'consent' in raw ? text(raw.consent) : defaultConsent(locale),
     sources: objectArray(raw.sources).map((entry) => ({
       kind: text(entry.kind),
       reference: text(entry.reference),

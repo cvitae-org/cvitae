@@ -103,6 +103,21 @@ const styles = StyleSheet.create({
   bullet: { width: 9 },
   bulletText: { flex: 1 },
   detail: { marginTop: 1 },
+  /**
+   * The RODO clause, set as the fine print it is — the same small grey italic
+   * above a rule that `CVFooter` renders on the page, so the exported file and
+   * the previewed one end the same way.
+   */
+  consent: {
+    marginTop: 10,
+    paddingTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: '#9ca3af',
+    fontSize: 7.2,
+    fontStyle: 'italic',
+    color: '#4b5563',
+    textAlign: 'center'
+  }
 });
 
 /** PDF URI strings are safest as ASCII; the visible label remains Unicode. */
@@ -195,6 +210,7 @@ export function AtsPdfDocument({
   portrait
 }: AtsPdfDocumentProps) {
   const h = headings[locale];
+  const consent = document.consent.trim();
   const role = targetRole?.trim() || document.skills.role;
   const metadataTitle = [document.personal.name, role].filter(Boolean).join(' — ');
 
@@ -363,6 +379,21 @@ export function AtsPdfDocument({
             </Text>
           </Section>
         )}
+
+        {/*
+          Consent belongs in this file and not only on the page: the header
+          above embeds the portrait, and this export is what gets attached to
+          an application. A photograph is the data the Labour Code's list does
+          not cover, so it is the part that actually rests on this sentence.
+
+          Absent when the clause is, matching `CVFooter` — the exported file
+          should end where the previewed one ends.
+        */}
+        {consent && (
+          <View style={styles.consent} wrap={false}>
+            <Text>{consent}</Text>
+          </View>
+        )}
       </Page>
     </PdfDocument>
   );
@@ -412,7 +443,8 @@ export const atsExpectedText = (
       item.finished ?? ''
     ]),
     document.languages.length ? h.languages : '',
-    ...document.languages.flatMap((item) => [item.name, item.level])
+    ...document.languages.flatMap((item) => [item.name, item.level]),
+    document.consent.trim()
   ];
   return values.filter(Boolean).join('\n');
 };

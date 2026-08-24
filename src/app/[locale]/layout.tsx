@@ -17,7 +17,10 @@ export async function generateMetadata({
   return {
     title: t('siteTitle'),
     description: t('siteDescription'),
-    icons: { icon: [{ url: '/favicon.ico' }] }
+    icons: {
+      icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+      apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
+    },
   };
 }
 

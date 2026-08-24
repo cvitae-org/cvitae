@@ -99,14 +99,14 @@
         "languages": "Języki"
       },
       "ongoing": "Obecnie",
-      "noExpiry": "Bezterminowo",
-      "footer": "Po referencje oraz dodatkowe informacje zapraszam do kontaktu telefonicznego / mailowego."
+      "noExpiry": "Bezterminowo"
     },
     "controls": {
       "import": "Importuj CV z pliku",
       "translateGaps": "Przetłumacz braki z drugiej wersji językowej CV",
       "translateGapsTitle": "Uzupełnij braki w CV {target} na podstawie CV {source}",
-      "switchDocumentLanguage": "Przełącz dokument CV na język {language}"
+      "switchDocumentLanguage": "Przełącz dokument CV na język {language}",
+      "consent": "Edytuj klauzulę końcową"
     },
     "editor": {
       "notSet": "Nie ustawiono",
@@ -215,6 +215,21 @@
       "waveDepth": "Głębokość",
       "waveCount": "Liczba",
       "cornerRounding": "Zaokrąglenie rogów",
+      "done": "Gotowe"
+    },
+    "consent": {
+      "title": "Klauzula końcowa",
+      "description": "Zdanie, którym kończy się CV. Należy do dokumentu, więc każdy język ma własne.",
+      "presets": "Standardowa treść",
+      "rodo": "Zgoda na przetwarzanie danych (RODO)",
+      "rodoHint": "Obejmuje dane spoza katalogu z Kodeksu pracy — w tym CV wizerunek. Odznacz, aby zakończyć CV bez klauzuli.",
+      "future": "Także przyszłe rekrutacje",
+      "futureHint": "Rozszerza zgodę na pozostanie w bazie po zamknięciu tej rekrutacji.",
+      "text": "Treść",
+      "placeholder": "Brak klauzuli — CV kończy się na ostatniej sekcji.",
+      "presetNote": "Standardowa treść. Edycja tutaj odznaczy pola; zaznacz je ponownie, aby ją przywrócić.",
+      "customNote": "Własna treść. Zaznaczenie pola powyżej ją zastąpi.",
+      "emptyNote": "CV kończy się na ostatniej sekcji, bez klauzuli i bez linii pod nią.",
       "done": "Gotowe"
     },
     "pdf": {

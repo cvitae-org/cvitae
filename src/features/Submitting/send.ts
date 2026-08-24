@@ -33,6 +33,8 @@
  * — refuse to send, and cvitae-mail refuses again unless a separate flag is set.
  */
 
+import { loadSettings, toRequestOverride } from '@/features/Settings/aiSettings';
+
 /**
  * Where mail clients start dropping the body.
  *
@@ -220,7 +222,10 @@ export const verifyRecipient = async (input: {
     response = await fetch('/api/jobs/verify-recipient', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input)
+      // Sent like every other AI-backed call. The default check reaches no
+      // model, but the provider still has to be stated: without it the runtime
+      // uses whatever its own `.env` says, which is not what the user chose.
+      body: JSON.stringify({ ...input, ai: toRequestOverride(loadSettings()) })
     });
   } catch {
     return { status: 'failed', error: { code: 'submitting.verifyUnavailable' } };

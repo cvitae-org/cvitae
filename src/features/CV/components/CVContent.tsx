@@ -9,6 +9,7 @@ import { CVLanguageSwitcher } from "./CVLanguageSwitcher";
 import { CVImportModal } from "./CVImportModal";
 import { CVTranslateModal } from "./CVTranslateModal";
 import { PortraitModal } from "./PortraitModal";
+import { ConsentModal } from "./ConsentModal";
 import { usePortrait } from "../hooks/usePortrait";
 import { useCvDocument } from '../hooks/useCvDocument';
 import { PortraitEditorProvider } from '../contexts/PortraitEditorContext';
@@ -39,6 +40,7 @@ function CVContentInner({ showControls = true }: CVContentProps) {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isTranslateOpen, setIsTranslateOpen] = useState(false);
   const [isPortraitOpen, setIsPortraitOpen] = useState(false);
+  const [isConsentOpen, setIsConsentOpen] = useState(false);
   const { document, locale } = useCvDocument();
   const { portrait } = usePortrait();
 
@@ -165,6 +167,44 @@ function CVContentInner({ showControls = true }: CVContentProps) {
               </svg>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setIsConsentOpen(true)}
+              title={t('consent')}
+              aria-label={t('consent')}
+              className="relative flex h-9 w-9 items-center justify-center rounded-md bg-white text-gray-500 shadow-sm transition-colors duration-200 hover:bg-gray-50 hover:text-gray-700"
+            >
+              {/* A document with a line of fine print ruled off at its foot —
+                  the clause as it looks on the page, rather than a generic
+                  cog that would say only "settings". */}
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 8V6a2 2 0 00-2-2H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-2"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 8h8M8 11h5"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M8 15h8M9 17.5h6"
+                />
+              </svg>
+            </button>
+
             <div className="mt-6 flex flex-col gap-2">
               <CVLanguageSwitcher />
               <AtsDownloadButton document={document} locale={locale} />
@@ -191,6 +231,11 @@ function CVContentInner({ showControls = true }: CVContentProps) {
       <PortraitModal
         isOpen={isPortraitOpen}
         onClose={() => setIsPortraitOpen(false)}
+      />
+
+      <ConsentModal
+        isOpen={isConsentOpen}
+        onClose={() => setIsConsentOpen(false)}
       />
     </div>
     </PdfDownloadMessagesProvider>

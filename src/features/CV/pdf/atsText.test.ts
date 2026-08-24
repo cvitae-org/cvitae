@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { atsExpectedText } from './AtsPdfDocument';
 import { cvFixture } from '@/test/fixtures/evidence';
+import { consentClause } from '../consent';
 import type { CvDocument, CvExperience } from '../document';
 
 const job = (company: string, bullets: string[]): CvExperience => ({
@@ -47,5 +48,34 @@ describe('ATS text layer', () => {
     const text = atsExpectedText(document, 'en');
     expect(text).toContain('Seven Engineer');
     expect(text).toContain('January 2021');
+  });
+
+  /**
+   * The clause is what the photograph in the header rests on, and this export
+   * is the file that gets attached — so it has to reach the text layer, not
+   * only the page `CVFooter` renders.
+   *
+   * Taken from the document rather than from the `locale` argument, which is
+   * the whole point of it having moved out of `messages/*.json`: the language
+   * of a printed sentence is a property of the CV it is printed on, and a
+   * Polish CV exported with English headings still ends in Polish.
+   */
+  it('carries the document\'s own clause, whatever the export locale', () => {
+    const polish = { ...document, consent: consentClause('pl', { future: true }) };
+
+    expect(atsExpectedText(polish, 'en')).toContain(
+      'Wyrażam zgodę na przetwarzanie moich danych osobowych'
+    );
+    expect(atsExpectedText(polish, 'en')).toContain(
+      'przyszłych procesów rekrutacyjnych.'
+    );
+  });
+
+  /** An emptied clause leaves nothing behind — no stray blank line, no rule. */
+  it('ends at the last section when there is no clause', () => {
+    const text = atsExpectedText({ ...document, consent: '' }, 'en');
+
+    expect(text).not.toMatch(/consent|zgod/i);
+    expect(text.endsWith(document.languages.at(-1)!.level)).toBe(true);
   });
 });

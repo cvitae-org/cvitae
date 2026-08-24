@@ -117,6 +117,10 @@ export const setRoleDescription = (locale: Locale, value: string) =>
     role_description: value
   }));
 
+/** The closing clause. Empty means the CV ends without one — see `./consent`. */
+export const setConsent = (locale: Locale, value: string) =>
+  editDocument(locale, (document) => ({ ...document, consent: value }));
+
 export const setSkills = (
   locale: Locale,
   patch: Partial<CvDocument['skills']>
