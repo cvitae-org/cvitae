@@ -12,6 +12,7 @@ import type {
   OfferSnapshot,
   ProposedBullet,
   SanitizedCvCatalog,
+  VariantOrigin,
   VariantStalenessReason
 } from './types';
 
@@ -229,24 +230,37 @@ const assertNumbers = (
   }
 };
 
-/** Validates the model proposal against the exact catalogs it was given. */
+/**
+ * Validates the proposal against the exact catalogs it was given.
+ *
+ * `origin` decides which half of the rules apply. The truth rules — cited ids
+ * must exist, numbers and technologies must appear in the evidence, seniority
+ * must not be inflated, a bullet must belong to its own job — hold for every
+ * proposal, because they are what makes the output checkable at all. The rules
+ * about *written* text hold only for a model's proposal: a CV attached as it
+ * stands has no headline to inflate and no summary to pad, and rejecting it for
+ * having one sentence, or none, would be rejecting the author's own document.
+ */
 export const validateEvidenceProposal = (
   proposal: EvidenceCvProposal,
   catalog: SanitizedCvCatalog,
-  requirements: OfferRequirement[]
+  requirements: OfferRequirement[],
+  origin: VariantOrigin = 'model'
 ): string[] => {
   const issues: string[] = [];
   const evidence = new Map(catalog.facts.map((fact) => [fact.id, fact]));
   const requirementIds = new Set(requirements.map((item) => item.id));
+  const written = origin === 'model';
 
-  if (!proposal.headline.text.trim()) issues.push('Headline is empty.');
+  if (written && !proposal.headline.text.trim()) issues.push('Headline is empty.');
   assertRefs(
     'Headline',
     proposal.headline.evidenceIds,
     proposal.headline.requirementIds,
     evidence,
     requirementIds,
-    issues
+    issues,
+    written || proposal.headline.text.trim() !== ''
   );
   assertNumbers(
     'Headline',
@@ -286,6 +300,7 @@ export const validateEvidenceProposal = (
   const summaryUnchanged = restated !== '' && restated === sourceSummary;
 
   if (
+    written &&
     !summaryUnchanged &&
     (proposal.summaryClaims.length < 2 || proposal.summaryClaims.length > 3)
   ) {
@@ -403,8 +418,13 @@ export const validateEvidenceProposal = (
       match.status === 'direct' || match.status === 'transferable'
     );
   });
-  for (const id of requirementIds) {
-    if (!matchIds.has(id)) issues.push(`Requirement "${id}" has no match result.`);
+  // Only a proposal that claims to answer the vacancy owes an answer for every
+  // requirement. An untailored CV was never asked the question, and inventing
+  // "missing" for each one would report gaps nobody assessed.
+  if (written) {
+    for (const id of requirementIds) {
+      if (!matchIds.has(id)) issues.push(`Requirement "${id}" has no match result.`);
+    }
   }
 
   const candidateCorpus = catalog.facts.map((fact) => normalized(fact.text)).join(' ');
@@ -848,18 +868,21 @@ export const createEvidenceVariant = ({
   sourceCv,
   sourceOffer,
   language,
-  response
+  response,
+  origin = 'model'
 }: {
   sourceCv: CvDocument;
   sourceOffer: OfferSnapshot;
   language: Locale;
   response: EvidenceProposalResponse;
+  origin?: VariantOrigin;
 }): EvidenceCvVariant => {
   const catalog = buildCvFactCatalog(sourceCv, language);
   const issues = validateEvidenceProposal(
     response.proposal,
     catalog,
-    sourceOffer.requirements
+    sourceOffer.requirements,
+    origin
   );
   if (issues.length > 0) throw new EvidenceValidationError(issues);
 
@@ -887,7 +910,8 @@ export const createEvidenceVariant = ({
       promptVersion: response.promptVersion,
       generatedAt,
       updatedAt: generatedAt,
-      language
+      language,
+      origin
     }
   };
 
@@ -904,6 +928,54 @@ export const createEvidenceVariant = ({
    */
   return { ...variant, acceptedChangeIds: requiredChangeIds(variant) };
 };
+
+/** The prompt version recorded for a variant nothing was prompted for. */
+export const IDENTITY_PROMPT_VERSION = 'as-is-v1';
+
+/**
+ * The CV attached to an application exactly as written, with no model call.
+ *
+ * The whole first step is otherwise gated on a generation: nothing can be sent
+ * until a variant exists and is approved, and the only way to get one was to
+ * ask a model to rewrite a document that may already be right. This is the
+ * other answer — the CV is the proposal, so there is no rewrite to review and
+ * no reason to leave it in draft.
+ *
+ * It is a real variant rather than a bypass, which is the point: the send path,
+ * the ATS export, the staleness check and the stored history all keep working
+ * on a snapshot of the document that was actually attached, instead of reading
+ * a live store that has moved on since.
+ */
+export const createIdentityVariant = ({
+  sourceCv,
+  sourceOffer,
+  language,
+  now = new Date().toISOString()
+}: {
+  sourceCv: CvDocument;
+  sourceOffer: OfferSnapshot;
+  language: Locale;
+  now?: string;
+}): EvidenceCvVariant =>
+  approveVariant(
+    createEvidenceVariant({
+      sourceCv,
+      sourceOffer,
+      language,
+      origin: 'as-is',
+      response: {
+        version: 'evidence-v2',
+        proposal: identityProposal(
+          sourceCv,
+          buildCvFactCatalog(sourceCv, language)
+        ),
+        provider: '',
+        model: '',
+        promptVersion: IDENTITY_PROMPT_VERSION,
+        generatedAt: now
+      }
+    })
+  );
 
 export const rebuildVariant = (
   variant: EvidenceCvVariant,
@@ -947,7 +1019,8 @@ export const approveVariant = (variant: EvidenceCvVariant): EvidenceCvVariant =>
     ...validateEvidenceProposal(
       variant.proposal,
       catalog,
-      variant.source.offer.requirements
+      variant.source.offer.requirements,
+      variant.meta.origin
     ),
     ...protectedFieldIssues(variant.source.cv, variant.output),
     ...proposalMaterializationIssues(

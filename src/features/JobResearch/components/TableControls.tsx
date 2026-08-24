@@ -239,6 +239,36 @@ export function TableControls({
             />
           </FacetRow>
 
+          {/* Separates what the model has read from what it has not. Two pills
+              rather than one toggle: a tab of a thousand imported offers is
+              worked through by looking at what is left and reviewed by looking
+              at what is done, and a toggle only ever hides one of them. */}
+          {facets.analysed + facets.unanalysed > 0 && (
+            <FacetRow label={t('analysis')}>
+              <Pill
+                label={t('notAnalysed')}
+                count={facets.unanalysed}
+                active={filters.analysis === 'unanalysed'}
+                onClick={() =>
+                  set((current) => ({
+                    analysis:
+                      current.analysis === 'unanalysed' ? 'all' : 'unanalysed'
+                  }))
+                }
+              />
+              <Pill
+                label={t('analysed')}
+                count={facets.analysed}
+                active={filters.analysis === 'analysed'}
+                onClick={() =>
+                  set((current) => ({
+                    analysis: current.analysis === 'analysed' ? 'all' : 'analysed'
+                  }))
+                }
+              />
+            </FacetRow>
+          )}
+
           {facets.workModes.length > 0 && (
             <FacetRow label={t('workMode')}>
               {facets.workModes.map((option) => (

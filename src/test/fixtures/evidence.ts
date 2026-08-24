@@ -9,7 +9,7 @@ export const cvFixture = (language: 'en' | 'pl' = 'en'): CvDocument => ({
     email: 'ada@example.com',
     phone: '+48 123 456 789',
     location: 'Warsaw, Poland',
-    links: { portfolio: 'example.com/żółć' }
+    links: { link1: 'example.com/żółć' }
   },
   role_description:
     language === 'pl'

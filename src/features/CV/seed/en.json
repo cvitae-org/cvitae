@@ -7,9 +7,9 @@
     "phone": "+48 518-304-803",
     "location": "",
     "links": {
-      "website": "bendominik.eu",
-      "github": "github.com/fijisoo",
-      "linkedin": "linkedin.com/in/dominik-ben/"
+      "link1": "bendominik.eu",
+      "link2": "github.com/fijisoo",
+      "link3": "linkedin.com/in/dominik-ben/"
     }
   },
   "role_description": "Over 8 years of experience in creating scalable web applications. I specialize in React and Next.js, with a strong focus on application architecture and UX. Passionate about new technologies, including Web3 and blockchain.",

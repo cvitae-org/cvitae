@@ -19,6 +19,7 @@ import {
   setPortraitShape,
   shapeSvgUrl,
   type PresetName,
+  portraitSource
 } from "../portrait";
 
 /**
@@ -165,7 +166,7 @@ export function PortraitModal({ isOpen, onClose }: PortraitModalProps) {
               fillColor="#ffffff"
             >
               <MaskedPortrait
-                src={portrait.image ?? "/me2.png"}
+                src={portraitSource(portrait)}
                 alt={t('previewAlt')}
                 maskSrc={shapeSvgUrl(shape)}
                 zoom={portrait.zoom}

@@ -4,7 +4,7 @@ import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import type { BoardOffer } from '@/libs/jobs/scraperClient';
 import { analyzeOffer, OfferAnalysisError } from '@/libs/jobs/analyzeOffer';
 import {
-  carriesClientKey,
+  clientKeyBlocksDelegation,
   runCapability,
   toRuntimeModel
 } from '@/libs/runtime/client';
@@ -221,15 +221,18 @@ export async function POST(req: Request) {
     // as the in-process fallback rather than fetching a second, potentially
     // changed copy of the vacancy.
     /*
-     * A request carrying the user's own key is analysed here rather than in the
-     * runtime, which cannot spend it — see `carriesClientKey`. The in-process
-     * pipeline below is the same five agents with the same prompts, so this
-     * changes which process runs the analysis and nothing about the result.
+     * A request carrying the user's own key is delegated like any other, since
+     * the runtime accepts the key and spends it for the call. It falls back to
+     * the in-process pipeline only when the key cannot reach the runtime safely
+     * — a remote `RUNTIME_URL` on plain HTTP — and that fallback is the same
+     * five agents with the same prompts, so it changes which process runs the
+     * analysis and nothing about the result.
      */
-    const delegated = carriesClientKey(override)
+    const delegated = clientKeyBlocksDelegation(override)
       ? ({
           status: 'unavailable',
-          detail: 'The request carries its own API key, which only this process can use.'
+          detail:
+            'The request carries its own API key and the runtime cannot be reached over a connection that can carry it, so only this process can use it.'
         } as const)
       : await runCapability<Record<string, unknown>>(
       'analyze_offer',

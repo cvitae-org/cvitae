@@ -81,6 +81,36 @@ export const useJobResearch = () => {
   );
 
   const [isResearching, setIsResearching] = useState(false);
+
+  /**
+   * Which rows are being analysed right now.
+   *
+   * A set rather than a flag, because `isResearching` answers "is anything
+   * happening" and the table needs "is *this* row happening". Without it a
+   * click on one row's analyse button dimmed every row's button and showed
+   * progress on none of them, so the only feedback was the row silently
+   * changing some seconds later.
+   *
+   * A batch puts every requested id in at once and takes each out as its
+   * result lands, so a long run reads as a queue draining rather than as one
+   * number counting up.
+   */
+  const [analysingIds, setAnalysingIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
+
+  const markAnalysing = useCallback((ids: string[], analysing: boolean) => {
+    if (ids.length === 0) return;
+
+    setAnalysingIds((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (analysing) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }, []);
   const [error, setError] = useState<ResearchError | null>(null);
 
   /** Progress of a running batch, or null when none is. */
@@ -97,6 +127,9 @@ export const useJobResearch = () => {
     }: ResearchInput) => {
       const trimmedUrl = url.trim();
       const trimmedText = offerText?.trim() ?? '';
+
+      // Only a re-analysis has a row to point at; a fresh URL has no row yet.
+      const analysingId = replaceId ?? null;
 
       if (!trimmedUrl && !trimmedText) {
         setError({
@@ -136,6 +169,7 @@ export const useJobResearch = () => {
       }
 
       setIsResearching(true);
+      if (analysingId) markAnalysing([analysingId], true);
       setError(null);
 
       try {
@@ -201,9 +235,10 @@ export const useJobResearch = () => {
         return null;
       } finally {
         setIsResearching(false);
+        if (analysingId) markAnalysing([analysingId], false);
       }
     },
-    [locale, manualRecords, allRecords, format, common]
+    [locale, manualRecords, allRecords, format, common, markAnalysing]
   );
 
   /**
@@ -244,6 +279,8 @@ export const useJobResearch = () => {
       // came back — the model's fields overwriting the person's, silently,
       // half an hour after they typed them.
       const requested = new Set(analysable.map((record) => record.id));
+
+      markAnalysing([...requested], true);
 
       try {
         const response = await fetch('/api/jobs/research/batch', {
@@ -301,6 +338,10 @@ export const useJobResearch = () => {
           );
           if (!existing) return;
 
+          // Off the list whichever way it went: a row that failed has
+          // stopped being analysed just as surely as one that succeeded.
+          markAnalysing([row.id], false);
+
           if (row.status === 'failed' || !row.record) {
             setBatch((state) =>
               state ? { ...state, failed: state.failed + 1 } : state
@@ -343,9 +384,13 @@ export const useJobResearch = () => {
       } finally {
         batchAbort.current = null;
         setBatch(null);
+        // Whatever is still marked never reported back — a stop, a dropped
+        // stream, a failure before the first row. Leaving them spinning would
+        // be a permanent lie about work that is not happening.
+        markAnalysing([...requested], false);
       }
     },
-    [locale]
+    [locale, markAnalysing]
   );
 
   /** Stops a batch. What has already landed is already saved. */
@@ -361,6 +406,7 @@ export const useJobResearch = () => {
     hydrated,
     research,
     isResearching,
+    analysingIds,
     researchMany,
     stopBatch,
     batch,

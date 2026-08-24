@@ -138,6 +138,10 @@ export function EvidenceReview({
   // tick: a cleared box is a decision, and there is nothing outstanding about it.
   const applied = required.filter((id) => accepted.has(id)).length;
   const frozen = variant.reviewState === 'approved' || sent;
+  // A CV attached as written proposes nothing, so there is no review to show:
+  // no change cards, no requirement matches, and a provenance line naming a
+  // provider and model that were never called.
+  const asIs = variant.meta.origin === 'as-is';
   const staleText = staleReasons
     .map((reason) => t(`stale.${reason}`))
     .join(', ');
@@ -174,7 +178,10 @@ export function EvidenceReview({
               {variant.output.skills.role}
             </p>
             <p className="mt-0.5 text-[11px] text-gray-500">
-              {variant.meta.provider} / {variant.meta.model} · {variant.meta.promptVersion} ·{' '}
+              {asIs
+                ? t('review.asIsProvenance')
+                : `${variant.meta.provider} / ${variant.meta.model} · ${variant.meta.promptVersion}`}{' '}
+              ·{' '}
               {format.dateTime(new Date(variant.meta.generatedAt), {
                 dateStyle: 'medium',
                 timeStyle: 'short'
@@ -201,43 +208,50 @@ export function EvidenceReview({
             {t('review.sentFrozen')}
           </p>
         )}
+        {asIs && !sent && (
+          <p className="mt-2 text-xs text-gray-600">{t('review.asIs')}</p>
+        )}
       </div>
 
-      <div className="space-y-2">{changes.map((change) => (
-        <ChangeCard
-          key={change.id}
-          submissionId={submissionId}
-          change={change}
-          accepted={accepted.has(change.id)}
-          frozen={frozen}
-        />
-      ))}</div>
+      {!asIs && (
+        <>
+          <div className="space-y-2">{changes.map((change) => (
+            <ChangeCard
+              key={change.id}
+              submissionId={submissionId}
+              change={change}
+              accepted={accepted.has(change.id)}
+              frozen={frozen}
+            />
+          ))}</div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-        <h4 className="text-xs font-semibold text-gray-800">
-          {t('review.requirementEvidence')}
-        </h4>
-        <div className="mt-2 space-y-1.5">
-          {variant.proposal.requirementMatches.map((match) => {
-            const requirement = variant.source.offer.requirements.find(
-              (item) => item.id === match.requirementId
-            );
-            return (
-              <div key={match.requirementId} className="flex items-start justify-between gap-3 text-[11px]">
-                <div>
-                  <p className="text-gray-800">{requirement?.exactText ?? match.requirementId}</p>
-                  {match.explanation && <p className="text-gray-500">{match.explanation}</p>}
-                </div>
-                <span className="whitespace-nowrap rounded bg-white px-1.5 py-0.5 font-medium text-gray-600">
-                  {t(`review.match.${match.status}`)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <h4 className="text-xs font-semibold text-gray-800">
+              {t('review.requirementEvidence')}
+            </h4>
+            <div className="mt-2 space-y-1.5">
+              {variant.proposal.requirementMatches.map((match) => {
+                const requirement = variant.source.offer.requirements.find(
+                  (item) => item.id === match.requirementId
+                );
+                return (
+                  <div key={match.requirementId} className="flex items-start justify-between gap-3 text-[11px]">
+                    <div>
+                      <p className="text-gray-800">{requirement?.exactText ?? match.requirementId}</p>
+                      {match.explanation && <p className="text-gray-500">{match.explanation}</p>}
+                    </div>
+                    <span className="whitespace-nowrap rounded bg-white px-1.5 py-0.5 font-medium text-gray-600">
+                      {t(`review.match.${match.status}`)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
-      {!frozen && (
+      {!frozen && !asIs && (
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"

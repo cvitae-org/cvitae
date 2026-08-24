@@ -1,7 +1,7 @@
 import { AiConfigError, resolveProviderId } from '@/libs/ai/providers';
 import { applyBoardFacts, type StatedFacts } from '@/libs/jobs/boardFacts';
 import {
-  carriesClientKey,
+  clientKeyBlocksDelegation,
   runBatchCapability,
   toRuntimeModel
 } from '@/libs/runtime/client';
@@ -65,12 +65,11 @@ export async function POST(req: Request) {
   }
 
   /*
-   * Batching is runtime-only by design — there is nothing here to fall back to —
-   * and the runtime spends its own credentials. A request holding the user's key
-   * therefore cannot be served, and saying so beats the runtime's own
-   * "Missing OPENAI_API_KEY" for an env var the user never set.
+   * Batching is runtime-only by design — there is nothing here to fall back to.
+   * The runtime now spends the key the request carries, so this refuses only
+   * when the key cannot reach it safely: a remote `RUNTIME_URL` on plain HTTP.
    */
-  if (carriesClientKey(body.ai as Record<string, unknown> | undefined)) {
+  if (clientKeyBlocksDelegation(body.ai as Record<string, unknown> | undefined)) {
     return Response.json(
       { error: apiError('clientKeyNotDelegable'), reason: 'client_key' },
       { status: 400 }

@@ -67,17 +67,22 @@ const baseUrl = (): string => {
 export const isRuntimeEnabled = (): boolean => baseUrl().length > 0;
 
 /**
- * Which provider and model the runtime should use for this call.
+ * Which provider and model the runtime should use for this call, and — when the
+ * user brought one — the key to spend on it.
  *
- * Never a credential. The runtime holds those, and the browser has never had
- * them — `toRequestOverride` deliberately sends only a choice of provider and
- * model, and the runtime validates the provider name and enforces loopback on
- * `baseURL` at its end.
+ * The runtime validates the provider name against its own enum and enforces
+ * loopback on `baseURL` at its end, so nothing here has to be trusted by it.
+ *
+ * `apiKey` is only ever the user's own, entered in Settings and arriving with
+ * their request; this process's server-side credential is not sent and has no
+ * reason to be, since the runtime holds its own. It is omitted unless
+ * `runtimeAcceptsCredentials` says the connection can carry it — see there.
  */
 export type RuntimeModel = {
   providerId?: string;
   modelId?: string;
   baseURL?: string;
+  apiKey?: string;
 };
 
 /** cvitae's settings arrive from the browser as JSON, so every field is unknown. */
@@ -89,25 +94,65 @@ type SettingsOverride = {
   apiKey?: unknown;
 };
 
-/**
- * Whether the request carries a credential this process cannot delegate.
- *
- * A key entered in Settings reaches cvitae and stops there. The runtime is a
- * separate process with its own `.env` and its own provider resolution, and it
- * reads credentials from its environment only — there is no field in the run
- * envelope for one, and inventing a way to post someone's API key between two
- * processes is not a thing to do quietly.
- *
- * So a request holding a user's own key must not be delegated. Without this
- * check the symptom is a Settings page that tests green — that test runs
- * against cvitae's own provider path, which does hold the key — followed by
- * every analysis failing with `Missing OPENAI_API_KEY` raised by a process the
- * user has no reason to know exists.
- */
-export const carriesClientKey = (
+/** Whether the request carries a key of the user's own. */
+const carriesClientKey = (
   override: SettingsOverride | undefined
 ): boolean =>
   typeof override?.apiKey === 'string' && override.apiKey.trim() !== '';
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+/**
+ * Whether the runtime can be handed the user's key over this connection.
+ *
+ * The runtime accepts `model.apiKey` and spends it for the one call — that is
+ * what makes a key entered in Settings work at all for the capabilities that
+ * only exist there. What it cannot do is decide whether the trip is safe: by
+ * the time the request arrives, the key has already crossed whatever network
+ * sits between the two, and posting a credential in cleartext to a host in
+ * another datacentre is not made acceptable by the receiver being careful.
+ *
+ * So the decision is made here, on the URL this process is about to post to.
+ * Loopback qualifies because the packets do not leave the machine, which is the
+ * arrangement the runtime is built for and the one `RUNTIME_URL` defaults to.
+ * TLS qualifies because that is what TLS is. Plain HTTP to anywhere else does
+ * not, and the caller refuses rather than sending.
+ *
+ * The failure this replaces is worth remembering: a key that tested green in
+ * Settings — that test runs against cvitae's own provider path, which does hold
+ * it — and then failed every delegated run with `Missing OPENAI_API_KEY`, an
+ * env var the user never set, named by a process they have no reason to know
+ * exists.
+ */
+export const runtimeAcceptsCredentials = (): boolean => {
+  const base = baseUrl();
+
+  if (!base) return false;
+
+  try {
+    const url = new URL(base);
+    return url.protocol === 'https:' || LOOPBACK_HOSTS.has(url.hostname);
+  } catch {
+    // An unparseable URL is a misconfiguration, and the safe reading of one is
+    // that we do not know where this key would go.
+    return false;
+  }
+};
+
+/**
+ * Whether the request carries a credential this process cannot get to the
+ * runtime — the only case left in which delegating is wrong.
+ *
+ * Both halves matter. Without a key there is nothing to protect and the
+ * server's own credential answers, as it always has. With a key and a
+ * connection that can carry it, the runtime spends the user's, which is what
+ * they asked for. Only a key with nowhere safe to go is a refusal, and it is a
+ * configuration problem — a remote `RUNTIME_URL` on plain HTTP — rather than
+ * anything about the request.
+ */
+export const clientKeyBlocksDelegation = (
+  override: SettingsOverride | undefined
+): boolean => carriesClientKey(override) && !runtimeAcceptsCredentials();
 
 const text = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -157,7 +202,12 @@ export const toRuntimeModel = (
   const model: RuntimeModel = {
     providerId: text(override?.providerId) ?? text(fallbackProviderId),
     modelId,
-    baseURL: text(override?.baseURL)
+    baseURL: text(override?.baseURL),
+    // Only the user's own key, and only when it can get there safely. When it
+    // cannot, this is undefined and the runtime answers on its own credential —
+    // which is why the routes check `clientKeyBlocksDelegation` first rather
+    // than letting a silently dropped key be spent as somebody else's.
+    apiKey: runtimeAcceptsCredentials() ? text(override?.apiKey) : undefined
   };
 
   // An object of nothing but undefined is noise on the wire and reads, at the

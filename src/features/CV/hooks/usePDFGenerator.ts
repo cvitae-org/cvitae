@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { A4_DIMENSIONS } from "../constants";
+import { absoluteUrl } from "../links";
 import {
   addTextLayer,
   collectTextLines,
@@ -53,21 +54,6 @@ const BULLET_EXPORT_PADDING_TOP = "17px";
 
 /** How long to let a just-committed edit reach the paginated tree. */
 const SETTLE_MS = 200;
-
-/**
- * Turns a stored address into something a PDF viewer will open.
- *
- * The links are typed by hand into a text field, so they arrive as people write
- * them — `github.com/you`, not `https://github.com/you`. A link annotation with
- * no scheme is not followed by any viewer, and the pre-migration header applied
- * the same `https://` prefix for the same reason.
- */
-const absoluteUrl = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
-};
 
 /**
  * Waits for a pending edit to reach the page that is about to be captured.

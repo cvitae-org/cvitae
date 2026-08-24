@@ -5,7 +5,7 @@ import { useFormatter, useTranslations } from 'next-intl';
 import type { ApplicationStatus, JobRecord } from '../types';
 import { applicationStatuses, NOT_STATED } from '../types';
 import type { Sort, SortKey } from '../filtering';
-import { isStated } from '../filtering';
+import { isAnalysed, isStated } from '../filtering';
 import { removeRecord, setStatus } from '../store';
 
 type ResearchTableProps = {
@@ -24,6 +24,14 @@ type ResearchTableProps = {
   /** Rows already queued, so the button can say so instead of duplicating. */
   queuedIds: Set<string>;
   isResearching: boolean;
+  /**
+   * Rows being analysed right now.
+   *
+   * `isResearching` says something is happening; this says which row. Without
+   * it a click dimmed every button and showed progress on none, so the only
+   * feedback was the row quietly changing some seconds later.
+   */
+  analysingIds: ReadonlySet<string>;
   /** False while the stored offers are still being read out of IndexedDB. */
   hydrated: boolean;
   /** Shared with the controls bar, so the header and the dropdown always agree. */
@@ -113,6 +121,7 @@ export function ResearchTable({
   filtered = false,
   onRerun,
   onAnalyse,
+  analysingIds,
   onQueue,
   queuedIds,
   isResearching,
@@ -195,14 +204,23 @@ export function ResearchTable({
           {records.map((record) => {
             const isExpanded = expandedId === record.id;
             const isQueued = queuedIds.has(record.id);
+            const isAnalysing = analysingIds.has(record.id);
+            const analysed = isAnalysed(record);
             const position = localizeSentinel(record.position);
             const company = localizeSentinel(record.company);
 
             return (
               <Fragment key={record.id}>
                 <tr
+                  /* The row being worked on is tinted and marked with a rail,
+                     so a click in a thousand-row table is visible without
+                     hunting for a 16px spinner. */
                   className={`border-b border-gray-100 transition-colors ${
-                    isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50/70'
+                    isAnalysing
+                      ? 'bg-[#65B7FF]/5 motion-safe:animate-pulse'
+                      : isExpanded
+                        ? 'bg-gray-50'
+                        : 'hover:bg-gray-50/70'
                   }`}
                 >
                   <td className="py-3 pl-2 align-middle">
@@ -330,17 +348,46 @@ export function ResearchTable({
                         <button
                           type="button"
                           onClick={() => onAnalyse(record)}
-                          disabled={isResearching}
-                          title={t('analyseTitle')}
+                          disabled={isResearching || isAnalysing}
+                          title={t(isAnalysing ? 'analysingTitle' : 'analyseTitle')}
                           aria-label={t('analyseAria', {
                             position,
                             company
                           })}
-                          className="rounded-md p-1 text-gray-300 transition-colors hover:bg-gray-100 hover:text-[#65B7FF] disabled:opacity-40"
+                          aria-busy={isAnalysing}
+                          className={`rounded-md p-1 transition-colors disabled:cursor-default ${
+                            isAnalysing
+                              ? 'text-[#65B7FF]'
+                              : analysed
+                                ? 'text-gray-200 hover:bg-gray-100 hover:text-gray-500 disabled:opacity-40'
+                                : 'text-[#65B7FF] hover:bg-[#65B7FF]/10 disabled:opacity-40'
+                          }`}
                         >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                          </svg>
+                          {isAnalysing ? (
+                            <svg
+                              className="h-4 w-4 motion-safe:animate-spin"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              />
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
+                            </svg>
+                          ) : (
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                            </svg>
+                          )}
                         </button>
                       )}
                       <button

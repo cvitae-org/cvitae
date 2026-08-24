@@ -648,13 +648,22 @@ export function CVTranslateModal({
               </tbody>
             </table>
 
+            {/*
+              Three outcomes, not two. An empty `translated` used to read as
+              "nothing needed doing", which is true only when nothing was
+              refused — with failures above it, the same sentence told the user
+              there were no gaps directly underneath a list of the gaps that
+              could not be filled.
+            */}
             <p className="text-[11px] text-gray-400">
-              {stage.result.translated.length === 0
-                ? t('noCallNeeded')
-                : t('translatedSummary', {
+              {stage.result.translated.length > 0
+                ? t('translatedSummary', {
                     source: sourceLocale.toUpperCase(),
                     seconds: (stage.result.elapsedMs / 1000).toFixed(0)
-                  })}
+                  })
+                : stage.result.failed.length > 0
+                  ? t('noneSucceeded')
+                  : t('noCallNeeded')}
             </p>
 
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">

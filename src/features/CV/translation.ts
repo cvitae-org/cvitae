@@ -6,6 +6,7 @@ import type {
   CvLanguage,
   CvSkillGroup
 } from './document';
+import { LINK_SLOTS, fillLinkSlots } from './links';
 
 export const CV_TRANSLATION_SECTIONS = [
   { key: 'personal' },
@@ -622,11 +623,17 @@ export const mergeTranslatedGaps = (
       );
     }
 
-    for (const [name, url] of Object.entries(translated.personal.links)) {
-      if (!document.personal.links[name] && !blank(url)) {
-        document.personal.links[name] = url.trim();
-        report.filled.push('personal.links.' + name);
-      }
+    // By position and by destination — a translated document holds the same
+    // three links as its source, usually spelled identically, so filling by key
+    // name alone would put one site into two slots the moment either side had
+    // written it with a scheme the other did not.
+    const mergedLinks = fillLinkSlots(
+      document.personal.links,
+      LINK_SLOTS.map((slot) => translated.personal.links[slot] ?? '')
+    );
+    document.personal.links = mergedLinks.links;
+    for (const slot of mergedLinks.filled) {
+      report.filled.push('personal.links.' + slot);
     }
   }
 

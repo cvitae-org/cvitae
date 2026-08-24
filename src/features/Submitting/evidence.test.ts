@@ -5,6 +5,7 @@ import {
   buildVariantChanges,
   carryDecisions,
   createEvidenceVariant,
+  createIdentityVariant,
   identityProposal,
   mergeProposal,
   protectedFieldIssues,
@@ -18,6 +19,7 @@ import {
   offerFixture,
   proposalFixture
 } from '@/test/fixtures/evidence';
+import { isSendable, type Submission } from './types';
 
 const response = () => ({
   version: 'evidence-v2' as const,
@@ -351,5 +353,92 @@ describe('snapshot-scoped evidence variants', () => {
       'master-cv',
       'job-offer'
     ]);
+  });
+});
+
+describe('a CV attached without a generation', () => {
+  const attach = (sourceCv = cvFixture()) =>
+    createIdentityVariant({
+      sourceCv,
+      sourceOffer: offerFixture(),
+      language: 'en'
+    });
+
+  it('reproduces the CV exactly, approved and with nothing to review', () => {
+    const source = cvFixture();
+    const variant = attach(source);
+
+    expect(variant.meta.origin).toBe('as-is');
+    expect(variant.reviewState).toBe('approved');
+    expect(buildVariantChanges(variant)).toEqual([]);
+    expect(requiredChangeIds(variant)).toEqual([]);
+    expect({ ...variant.output, updated_at: source.updated_at }).toEqual(source);
+  });
+
+  it('clears the send gate that a generation used to be the only way past', () => {
+    const submission = {
+      id: 'submission-1',
+      recordId: 'record-1',
+      offer: offerFixture(),
+      language: 'en',
+      queuedAt: '2026-01-01T00:00:00.000Z',
+      cv: attach(),
+      apply: { email: 'jobs@example.com', subject: '', body: 'A short note.' }
+    } satisfies Submission;
+
+    expect(isSendable(submission)).toBe(true);
+    expect(isSendable({ ...submission, cv: undefined })).toBe(false);
+  });
+
+  it('accepts a CV whose own summary and headline a generation would be rejected for', () => {
+    const bare = cvFixture();
+    bare.role_description = '';
+    bare.skills.role = '';
+
+    const variant = attach(bare);
+    expect(variant.reviewState).toBe('approved');
+    expect(variant.output.role_description).toBe('');
+
+    // The same proposal judged as written text fails on both counts, which is
+    // the rule this origin exists to step around — and must keep failing for
+    // anything a model produced.
+    const catalog = buildCvFactCatalog(bare, 'en');
+    expect(
+      validateEvidenceProposal(
+        identityProposal(bare, catalog),
+        catalog,
+        offerFixture().requirements
+      )
+    ).toEqual(
+      expect.arrayContaining([
+        'Headline is empty.',
+        'Summary must contain two or three cited sentences.'
+      ])
+    );
+  });
+
+  it('still refuses a fabricated claim, whatever the origin says', () => {
+    const source = cvFixture();
+    const catalog = buildCvFactCatalog(source, 'en');
+    const invented = identityProposal(source, catalog);
+    invented.headline = {
+      text: 'Frontend Developer with 12 years of Kubernetes',
+      evidenceIds: ['role:0'],
+      requirementIds: []
+    };
+
+    expect(
+      validateEvidenceProposal(
+        invented,
+        catalog,
+        offerFixture().requirements,
+        'as-is'
+      )
+    ).toEqual(
+      expect.arrayContaining([
+        'Headline adds unsupported numeric claim "12".',
+        'Proposal adds unsupported technology "kubernetes".'
+      ])
+    );
   });
 });

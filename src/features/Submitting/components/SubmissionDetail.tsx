@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { LocalizedError } from '@/components/LocalizedError';
 import type { ErrorDescriptor } from '@/libs/i18n/errors';
@@ -16,7 +16,19 @@ import {
 import { defaultSubject } from '../offerText';
 import { patchApply, setLanguage } from '../store';
 import { reopenSubmission, sendSubmission } from '../queue';
-import { buildMailto, MAILTO_SAFE_BODY } from '../send';
+import {
+  blobToBase64,
+  buildMailto,
+  createGmailDraft,
+  readMailboxStatus,
+  verifyRecipient,
+  MAILTO_SAFE_BODY,
+  type MailboxStatus,
+  type RecipientVerification
+} from '../send';
+import { generateAtsPdf } from '@/features/CV/pdf/atsPdf';
+import { portraitSource } from '@/features/CV/portrait';
+import { usePortrait } from '@/features/CV/hooks/usePortrait';
 import type { PendingAction } from '../hooks/useSubmitting';
 import {
   EVIDENCE_SECTIONS,
@@ -44,6 +56,8 @@ type SubmissionDetailProps = {
     submission: Submission,
     sections?: readonly EvidenceSection[]
   ) => void;
+  /** Attaches the master CV unchanged, with no model call. */
+  onAttachCvAsIs: (submission: Submission) => void;
   onDraftEmail: (submission: Submission) => void;
   onDismissError: () => void;
   /** The research row behind this offer, while it still exists. */
@@ -184,6 +198,7 @@ export function SubmissionDetail({
   pending,
   error,
   onGenerateCv,
+  onAttachCvAsIs,
   onDraftEmail,
   onDismissError,
   record,
@@ -194,6 +209,10 @@ export function SubmissionDetail({
   const t = useTranslations('submitting');
   const common = useTranslations('common');
   const format = useFormatter();
+  // The attachment has to be the same document the download produces, portrait
+  // included. A CV that differs depending on how it was sent is a CV nobody can
+  // reason about after the fact.
+  const { portrait } = usePortrait();
   const [copied, setCopied] = useState(false);
 
   /**
@@ -267,6 +286,200 @@ export function SubmissionDetail({
       setCopied(false);
     }
   }, [apply.body]);
+
+  /**
+   * What other sources say the recipient should be.
+   *
+   * Tagged with its submission for the same reason the draft is: switching
+   * offers must not leave the last one's findings on screen beside a different
+   * address. Never auto-applied — `use` below is the only thing that writes to
+   * the field, and it runs from a click.
+   */
+  const [verification, setVerification] = useState<{
+    submissionId: string;
+    result: RecipientVerification;
+  } | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<{
+    submissionId: string;
+    error: ErrorDescriptor;
+  } | null>(null);
+
+  const checked =
+    verification?.submissionId === submission.id ? verification.result : null;
+  const checkError =
+    verifyError?.submissionId === submission.id ? verifyError.error : null;
+
+  const handleVerify = useCallback(async (searchWeb = false) => {
+    setVerifying(true);
+    setVerifyError(null);
+
+    const outcome = await verifyRecipient({
+      searchWeb,
+      offerText: record?.offer_text ?? undefined,
+      url: offer.source_url || undefined,
+      company: offer.company === NOT_STATED ? '' : offer.company,
+      position: offer.position === NOT_STATED ? '' : offer.position,
+      location: offer.location === NOT_STATED || offer.location === 'Unknown' ? '' : offer.location,
+      current: apply.email
+    });
+
+    if (outcome.status === 'ok') {
+      setVerification({ submissionId: submission.id, result: outcome.verification });
+    } else {
+      setVerifyError({
+        submissionId: submission.id,
+        error: outcome.error as ErrorDescriptor
+      });
+    }
+
+    setVerifying(false);
+  }, [
+    apply.email,
+    offer.company,
+    offer.location,
+    offer.position,
+    offer.source_url,
+    record?.offer_text,
+    submission.id
+  ]);
+
+  /**
+   * Whether the application can go straight into Gmail.
+   *
+   * Read once on mount rather than pushed from the server, because it is an
+   * optional local process whose state changes outside this app entirely — a
+   * mailbox connected in a browser tab five minutes ago, a service started
+   * after the page loaded. A stale "not connected" costs one refresh; a
+   * missing button costs the feature.
+   */
+  const [mailbox, setMailbox] = useState<MailboxStatus | null>(null);
+  const [drafting, setDrafting] = useState(false);
+
+  /**
+   * The last draft and the last failure, each tagged with the submission it
+   * belongs to.
+   *
+   * Tagged rather than cleared by an effect on `submission.id`, because an
+   * effect that resets state runs *after* a render — so switching submission
+   * would paint the previous offer's "draft created" confirmation for a frame
+   * beside a different Send button. Comparing the tag while rendering has no
+   * such window, and needs no effect at all.
+   */
+  const [draft, setDraft] = useState<{ submissionId: string; id: string } | null>(
+    null
+  );
+  const [failure, setFailure] = useState<{
+    submissionId: string;
+    error: ErrorDescriptor;
+  } | null>(null);
+
+  const draftedId = draft?.submissionId === submission.id ? draft.id : null;
+  const draftError =
+    failure?.submissionId === submission.id ? failure.error : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void readMailboxStatus().then((status) => {
+      if (!cancelled) setMailbox(status);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * Builds the CV, then the draft.
+   *
+   * The ATS export rather than the designed one, and that is the whole reason
+   * this is worth automating: the designed PDF is a raster with no text layer,
+   * so an applicant tracking system reads nothing from it. The file a person
+   * would have picked out of ~/Downloads is the wrong one about half the time.
+   *
+   * `preflight` is honoured exactly as `AtsDownloadButton` honours it — a
+   * document that fails its integrity check is not quietly attached to an
+   * application.
+   */
+  const handleGmailDraft = useCallback(async () => {
+    if (!cv) return;
+
+    setDrafting(true);
+    setFailure(null);
+    setDraft(null);
+
+    try {
+      const pdf = await generateAtsPdf({
+        document: cv.output,
+        locale: submission.language,
+        targetRole: offer.position,
+        company: offer.company,
+        portrait: portraitSource(portrait)
+      });
+
+      if (!pdf.preflight.ok) {
+        setFailure({
+          submissionId: submission.id,
+          error: { code: 'submitting.mailAttachmentBlocked' }
+        });
+        return;
+      }
+
+      const outcome = await createGmailDraft({
+        to: apply.email,
+        subject,
+        body: apply.body,
+        fromName: cvDocument.personal.name,
+        attachments: [
+          {
+            filename: pdf.filename,
+            contentType: 'application/pdf',
+            base64: await blobToBase64(pdf.blob)
+          }
+        ]
+      });
+
+      if (outcome.status === 'ok') {
+        setDraft({ submissionId: submission.id, id: outcome.id });
+        // Deliberately does *not* mark the submission sent. Nothing has been
+        // sent — the draft is sitting in Gmail waiting to be read, and marking
+        // it now would put "applied" against an application still in a folder.
+        return;
+      }
+
+      setFailure({
+        submissionId: submission.id,
+        error: outcome.error as ErrorDescriptor
+      });
+
+      // A mailbox that turns out not to be connected is worth re-reading, so
+      // the panel switches to the Connect link instead of offering the button
+      // that just failed.
+      if (outcome.reason === 'not_connected') {
+        setMailbox(await readMailboxStatus());
+      }
+    } catch (cause) {
+      setFailure({
+        submissionId: submission.id,
+        error: {
+          code: 'submitting.mailDraftFailed',
+          detail: cause instanceof Error ? cause.message.slice(0, 500) : undefined
+        }
+      });
+    } finally {
+      setDrafting(false);
+    }
+  }, [
+    apply.body,
+    apply.email,
+    cv,
+    cvDocument.personal.name,
+    offer.company,
+    offer.position,
+    portrait,
+    subject,
+    submission.id,
+    submission.language
+  ]);
 
   const overLong = apply.body.length > MAILTO_SAFE_BODY;
   const sendable = isSendable(submission) && staleReasons.length === 0;
@@ -507,25 +720,64 @@ export function SubmissionDetail({
           </fieldset>
         )}
 
-        <button
-          type="button"
-          onClick={() =>
-            onGenerateCv(submission, sections.length > 0 ? sections : undefined)
-          }
-          disabled={busy || sent}
-          className={`mt-3 flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 ${
-            cv
-              ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:bg-white disabled:opacity-50'
-              : 'bg-[#65B7FF] text-white hover:bg-[#529ED5]'
-          }`}
-        >
-          {pending === 'cv' ? (
-            <>
-              <Spinner />
-              {t('detail.generating')}
-            </>
-          ) : (
-            <>
+        {/*
+          Two ways past this step, side by side rather than one behind the
+          other. Tailoring is what the page is for, so it keeps the primary
+          button — but an application is not blocked on it: a CV that is
+          already right for the vacancy can be attached as written, and that
+          answer should not be hidden behind the one that costs a model call.
+        */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onGenerateCv(submission, sections.length > 0 ? sections : undefined)
+            }
+            disabled={busy || sent}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:bg-gray-300 ${
+              cv
+                ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:bg-white disabled:opacity-50'
+                : 'bg-[#65B7FF] text-white hover:bg-[#529ED5]'
+            }`}
+          >
+            {pending === 'cv' ? (
+              <>
+                <Spinner />
+                {t('detail.generating')}
+              </>
+            ) : (
+              <>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                {cv ? t('detail.generateNew') : t('detail.generate')}
+              </>
+            )}
+          </button>
+
+          {!sent && (
+            <button
+              type="button"
+              onClick={() => onAttachCvAsIs(submission)}
+              // Nothing to do when the CV already sits here unchanged and
+              // still matches the document it was copied from. Once it is
+              // stale this is the one-click way to refresh it.
+              disabled={
+                busy ||
+                (cv?.meta.origin === 'as-is' && staleReasons.length === 0)
+              }
+              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
               <svg
                 className="h-4 w-4"
                 fill="none"
@@ -536,13 +788,21 @@ export function SubmissionDetail({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              {cv ? t('detail.generateNew') : t('detail.generate')}
-            </>
+              {cv?.meta.origin === 'as-is'
+                ? t('detail.reattachAsIs')
+                : t('detail.attachAsIs')}
+            </button>
           )}
-        </button>
+        </div>
+
+        {!sent && (
+          <p className="mt-1.5 text-[11px] text-gray-400">
+            {t('detail.attachAsIsHint')}
+          </p>
+        )}
       </Step>
 
       <Step
@@ -579,6 +839,239 @@ export function SubmissionDetail({
             {t('detail.offerSays', { instruction: offer.how_to_apply })}
           </p>
         )}
+
+        {/* Where it goes, checked against sources the posting does not control.
+            Everything below is a suggestion: only the Use button writes to the
+            field above, and only from a click. */}
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleVerify(false)}
+              disabled={verifying}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            >
+              {verifying ? (
+                <>
+                  <Spinner />
+                  {t('detail.verifyRunning')}
+                </>
+              ) : (
+                t(checked ? 'detail.verifyRecheck' : 'detail.verifyRun')
+              )}
+            </button>
+            <span className="text-[11px] text-gray-400">{t('detail.verifyHint')}</span>
+          </div>
+
+          {checkError && (
+            <LocalizedError error={checkError} className="mt-2 text-xs text-red-600" />
+          )}
+
+          {checked && (
+            <div className="mt-3 space-y-2">
+              {/* What is in the field now. Warnings, never a block. */}
+              {checked.current.warnings.length > 0 ? (
+                <ul className="space-y-1 rounded-lg bg-amber-50 px-3 py-2">
+                  {checked.current.warnings.map((warning) => (
+                    <li key={warning} className="text-xs text-amber-800">
+                      {warning}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                apply.email.trim() && (
+                  <p className="text-xs text-green-700">{t('detail.verifyCurrentOk')}</p>
+                )
+              )}
+
+              {checked.company_publishes_no_address && (
+                <p className="text-xs text-gray-600">{t('detail.verifyFormOnly')}</p>
+              )}
+
+              {/* The right answer when the employer takes no email at all. */}
+              {checked.apply_url && (
+                <p className="text-xs text-gray-600">
+                  {t('detail.verifyApplyLink')}{' '}
+                  <a
+                    href={checked.apply_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#65B7FF] hover:underline"
+                  >
+                    {checked.apply_url}
+                  </a>
+                </p>
+              )}
+
+              {/* How much the domain comparison behind every badge is worth. */}
+              {checked.anchor_trust === 'guessed' && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  {t('detail.verifyGuessedDomain')}
+                </p>
+              )}
+              {checked.anchor_trust === 'discovered' && (
+                <p className="text-[11px] text-gray-500">
+                  {t('detail.verifyDiscoveredDomain')}
+                </p>
+              )}
+
+              {/* The pages that were read, as links.
+                  When an employer publishes no address — which is most of them
+                  now — this *is* the answer: a careers page you can open and
+                  apply through, rather than a count of sources that helps
+                  nobody. It was already being gathered and only summarised. */}
+              {checked.sources_read.some((s) => s.source === 'company_site') && (
+                <>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                    {t('detail.verifyCompanyPages')}
+                  </p>
+                  <ul className="space-y-1">
+                    {checked.sources_read
+                      .filter((source) => source.source === 'company_site')
+                      // Careers first: it is the one worth clicking.
+                      .sort((a, b) =>
+                        Number(b.page === 'careers') - Number(a.page === 'careers')
+                      )
+                      .map((source) => (
+                        <li key={source.url} className="flex items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              source.page === 'careers'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {t(
+                              source.page === 'careers'
+                                ? 'detail.verifyPageCareers'
+                                : source.page === 'contact'
+                                  ? 'detail.verifyPageContact'
+                                  : 'detail.verifyPageHome'
+                            )}
+                          </span>
+                          <a
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="truncate text-xs text-[#65B7FF] hover:underline"
+                          >
+                            {source.url}
+                          </a>
+                        </li>
+                      ))}
+                  </ul>
+                </>
+              )}
+
+              {checked.candidates.length === 0 ? (
+                <p className="text-xs text-gray-500">{t('detail.verifyNoFindings')}</p>
+              ) : (
+                <>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                    {t('detail.verifyCandidates')}
+                  </p>
+                  <ul className="space-y-2">
+                    {checked.candidates.map((candidate) => (
+                      <li
+                        key={candidate.address}
+                        className="rounded-lg border border-gray-200 px-3 py-2"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              candidate.confidence === 'high'
+                                ? 'bg-green-100 text-green-700'
+                                : candidate.confidence === 'medium'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {t(
+                              candidate.confidence === 'high'
+                                ? 'detail.verifyConfidenceHigh'
+                                : candidate.confidence === 'medium'
+                                  ? 'detail.verifyConfidenceMedium'
+                                  : 'detail.verifyConfidenceLow'
+                            )}
+                          </span>
+                          <span className="font-mono text-xs text-gray-900">
+                            {candidate.address}
+                          </span>
+                          {candidate.address !== apply.email.trim().toLowerCase() && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                patchApply(submission.id, { email: candidate.address })
+                              }
+                              className="ml-auto rounded-md border border-[#65B7FF] px-2 py-0.5 text-[11px] font-medium text-[#65B7FF] transition-colors hover:bg-[#65B7FF]/10"
+                            >
+                              {t('detail.verifyUse')}
+                            </button>
+                          )}
+                        </div>
+
+                        <ul className="mt-1 space-y-0.5">
+                          {candidate.why.map((reason) => (
+                            <li key={reason} className="text-[11px] text-gray-500">
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+
+                        {/* Provenance, so a person can go and look rather than
+                            take the confidence chip on trust. */}
+                        <ul className="mt-1 space-y-0.5">
+                          {candidate.evidence.map((entry) => (
+                            <li key={entry.url} className="truncate">
+                              <a
+                                href={entry.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-[#65B7FF] hover:underline"
+                              >
+                                {entry.url}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {/* Escalation, offered only once the free tiers have run and
+                  produced nothing on a domain anyone vouched for. */}
+              {checked.anchor_trust !== 'board' &&
+                !checked.candidates.some((c) => c.confidence === 'high') && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleVerify(true)}
+                      disabled={verifying}
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {verifying ? (
+                        <>
+                          <Spinner />
+                          {t('detail.verifySearching')}
+                        </>
+                      ) : (
+                        t('detail.verifySearchWeb')
+                      )}
+                    </button>
+                    <span className="text-[11px] text-gray-400">
+                      {t('detail.verifySearchHint')}
+                    </span>
+                  </div>
+                )}
+
+              <p className="text-[11px] text-gray-400">
+                {t('detail.verifySourcesRead', { count: checked.sources_read.length })}
+              </p>
+            </div>
+          )}
+        </div>
       </Step>
 
       {method === 'email' && (
@@ -745,6 +1238,74 @@ export function SubmissionDetail({
                   ? t('detail.send')
                   : t('detail.openAndMark')}
               </button>
+            )}
+
+            {/* The Gmail path, beside the mail-client one rather than instead
+                of it. A mailbox nobody connected, or a service nobody started,
+                falls back to exactly the flow that existed before. */}
+            {method === 'email' && sendable && mailbox && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                {draftedId ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm text-green-700">
+                      {t('detail.gmailDraftReady')}
+                    </p>
+                    <a
+                      href="https://mail.google.com/mail/u/0/#drafts"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                    >
+                      {t('detail.gmailOpenDrafts')}
+                    </a>
+                  </div>
+                ) : !mailbox.running ? (
+                  <p className="text-xs text-gray-500">
+                    {t('detail.gmailNotRunning')}
+                  </p>
+                ) : !mailbox.connected ? (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a
+                      href={mailbox.connectUrl ?? '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-[#65B7FF] bg-white px-3 py-1.5 text-xs font-medium text-[#65B7FF] transition-colors hover:bg-[#65B7FF]/10"
+                    >
+                      {t('detail.gmailConnect')}
+                    </a>
+                    <span className="text-xs text-gray-500">
+                      {t('detail.gmailConnectHint')}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleGmailDraft}
+                      disabled={drafting}
+                      className="inline-flex items-center gap-2 rounded-lg border border-[#65B7FF] bg-white px-3 py-1.5 text-xs font-medium text-[#65B7FF] transition-colors hover:bg-[#65B7FF]/10 disabled:opacity-50"
+                    >
+                      {drafting ? (
+                        <>
+                          <Spinner />
+                          {t('detail.gmailDrafting')}
+                        </>
+                      ) : (
+                        t('detail.gmailDraft')
+                      )}
+                    </button>
+                    {mailbox.email && (
+                      <span className="text-[11px] text-gray-400">
+                        {t('detail.gmailAccount', { email: mailbox.email })}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {draftError && (
+                  <LocalizedError error={draftError} className="mt-2 text-xs text-red-600" />
+                )}
+              </div>
             )}
 
             {!sendable && (

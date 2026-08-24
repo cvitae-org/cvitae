@@ -1,5 +1,5 @@
 import {
-  carriesClientKey,
+  clientKeyBlocksDelegation,
   runCapability,
   toRuntimeModel
 } from '@/libs/runtime/client';
@@ -121,13 +121,13 @@ export async function POST(req: Request) {
       : DEFAULT_TIMEOUT_MS;
 
   /*
-   * The runtime resolves credentials from its own environment, and this
-   * capability has no in-process fallback — so a request holding the user's own
-   * key cannot be served at all. Said plainly here, because the alternative is
-   * the runtime's own "Missing OPENAI_API_KEY": an env var the user never set,
-   * named by a process they have no reason to know exists.
+   * The user's own key is forwarded to the runtime, which spends it for the one
+   * call — so this only refuses when the key cannot get there safely, meaning a
+   * remote `RUNTIME_URL` on plain HTTP. Delegating anyway would drop the key in
+   * transit and answer on the server's credential, quietly spending someone
+   * else's quota while the user believed they were spending their own.
    */
-  if (carriesClientKey(ai)) {
+  if (clientKeyBlocksDelegation(ai)) {
     return Response.json(
       { error: apiError('clientKeyNotDelegable'), reason: 'client_key' },
       { status: 400 }

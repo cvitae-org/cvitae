@@ -11,9 +11,10 @@ import type {
   LegacyCvVariant,
   OfferSnapshot,
   Submission,
-  SubmittingState
+  SubmittingState,
+  VariantOrigin
 } from './types';
-import { asLocale, requirementMatchStatuses } from './types';
+import { asLocale, requirementMatchStatuses, variantOrigins } from './types';
 import {
   buildCvFactCatalog,
   fingerprintCv,
@@ -215,6 +216,17 @@ const toEvidenceVariant = (value: unknown): EvidenceCvVariant | undefined => {
   }
 
   const language = asLocale(meta.language);
+  /*
+   * Absent on everything stored before variants could be attached as-is, and
+   * `model` is the right reading of that: every one of them came from a
+   * generation, and validating it as one is exactly what happened when it was
+   * written.
+   */
+  const origin = (variantOrigins as readonly string[]).includes(
+    meta.origin as string
+  )
+    ? (meta.origin as VariantOrigin)
+    : 'model';
   const sourceCv = parseDocument(source.cv, language);
   const sourceOffer = toSnapshot(source.offer);
   const output = parseDocument(raw.output, language);
@@ -240,7 +252,8 @@ const toEvidenceVariant = (value: unknown): EvidenceCvVariant | undefined => {
       promptVersion: str(meta.promptVersion, 'unknown'),
       generatedAt: str(meta.generatedAt) || new Date(0).toISOString(),
       updatedAt: str(meta.updatedAt) || str(meta.generatedAt) || new Date(0).toISOString(),
-      language
+      language,
+      origin
     }
   };
   const accepted = new Set(acceptedChangeIds);
@@ -257,7 +270,8 @@ const toEvidenceVariant = (value: unknown): EvidenceCvVariant | undefined => {
     validateEvidenceProposal(
       proposal,
       buildCvFactCatalog(sourceCv, language),
-      sourceOffer.requirements
+      sourceOffer.requirements,
+      origin
     ).length === 0 &&
     requiredChangeIds(reconstructed).every((id) => accepted.has(id));
 

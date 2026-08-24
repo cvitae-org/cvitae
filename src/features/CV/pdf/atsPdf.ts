@@ -3,6 +3,7 @@ import type { Locale } from '@/libs/i18n/config';
 import type { CvDocument } from '../document';
 import { uniqueContactLinks } from './contactLinks';
 import { preflightPdf, type PdfPreflightResult } from './preflight';
+import { printablePortrait } from './portraitImage';
 
 const FONT_FAMILY = 'DejaVu Sans ATS';
 let fontsRegistered = false;
@@ -119,12 +120,21 @@ export async function generateAtsPdf({
   document,
   locale,
   targetRole,
-  company
+  company,
+  portrait
 }: {
   document: CvDocument;
   locale: Locale;
   targetRole?: string;
   company?: string;
+  /**
+   * The portrait source to embed, or omitted to export without one.
+   *
+   * Whatever the portrait store holds — a WebP data URL, or a path under
+   * `public/` for the default — since `printablePortrait` is what turns either
+   * into something the exporter can embed.
+   */
+  portrait?: string;
 }): Promise<{ blob: Blob; preflight: PdfPreflightResult; filename: string }> {
   const [
     { Font, pdf },
@@ -135,11 +145,23 @@ export async function generateAtsPdf({
   ]);
   await ensureFonts(Font);
 
+  // A portrait that will not load must not take the CV down with it. The
+  // photograph is the one part of this export nobody is applying for a job
+  // with, and failing the download over it — leaving the user with no CV and a
+  // canvas error — is the wrong trade.
+  const printable = portrait
+    ? await printablePortrait(portrait).catch((error: unknown) => {
+        console.warn('The portrait was left out of the ATS export.', error);
+        return undefined;
+      })
+    : undefined;
+
   const element = React.createElement(AtsPdfDocument, {
     document,
     locale,
     targetRole,
-    company
+    company,
+    portrait: printable
   });
   const blob = await pdf(element as Parameters<typeof pdf>[0]).toBlob();
   const preflight = await preflightPdf(blob, {

@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import type { Locale } from '@/libs/i18n/config';
 import type { CvDocument } from '../document';
 import { generateAtsPdf, saveBlob } from '../pdf/atsPdf';
+import { portraitSource } from '../portrait';
+import { usePortrait } from '../hooks/usePortrait';
 import type { PdfPreflightIssue } from '../pdf/preflight';
 import {
   useRegisterPdfDownloadMessages,
@@ -31,6 +33,9 @@ export function AtsDownloadButton({
   className = ''
 }: AtsDownloadButtonProps) {
   const t = useTranslations('cv.pdf');
+  // The same photograph the header shows, so the exported CV and the one on
+  // screen are the same document.
+  const { portrait } = usePortrait();
   const [pending, setPending] = useState(false);
   const [issues, setIssues] = useState<PdfPreflightIssue[]>([]);
   const [error, setError] = useState<{
@@ -83,7 +88,8 @@ export function AtsDownloadButton({
         document,
         locale,
         targetRole,
-        company
+        company,
+        portrait: portraitSource(portrait)
       });
       setIssues(result.preflight.issues);
       if (!result.preflight.ok) {

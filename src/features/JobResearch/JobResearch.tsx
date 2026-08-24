@@ -12,8 +12,9 @@ import { ImportOffers } from './components/ImportOffers';
 import { ResearchAuditBar } from './components/ResearchAuditBar';
 import { clearList, removeList, renameList, setActiveList } from './store';
 import { toCsv } from './storage';
-import { MANUAL_LIST_ID, NOT_STATED } from './types';
+import { MANUAL_LIST_ID } from './types';
 import type { JobRecord } from './types';
+import { isAnalysable } from './filtering';
 import { SheetNavigation } from '@/components/SheetNavigation';
 import { Sheet } from '@/components/Sheet';
 import { queueOffer } from '@/features/Submitting/queue';
@@ -38,6 +39,7 @@ export function JobResearch() {
     hydrated,
     research,
     isResearching,
+    analysingIds,
     researchMany,
     stopBatch,
     batch,
@@ -64,21 +66,13 @@ export function JobResearch() {
    * Rows in this tab that an import left blank and that still hold their
    * posting, which is exactly what the batch can fill.
    *
-   * `role_profile` is the test because it is the field a board never publishes
-   * and only a reading of the text produces — `company` and `salary` arrive
-   * populated from the scrape, so neither distinguishes an analysed row from an
-   * imported one. Taken from `records` rather than `visible`: a filter narrows
+   * `isAnalysable` is shared with the filter and the row marker, so the count
+   * in the header and the rows the "not analysed" pill shows can never drift
+   * apart. Taken from `records` rather than `visible`: a filter narrows
    * what is being looked at, not what needs work, and having the count jump
    * around as pills are toggled would make it read like a filtered subtotal.
    */
-  const unanalysed = useMemo(
-    () =>
-      records.filter(
-        (record) =>
-          record.role_profile === NOT_STATED && Boolean(record.offer_text?.trim())
-      ),
-    [records]
-  );
+  const unanalysed = useMemo(() => records.filter(isAnalysable), [records]);
 
   const activeList = lists.find((list) => list.id === activeListId);
   const activeListName =
@@ -295,6 +289,7 @@ export function JobResearch() {
                 onQueue={handleQueue}
                 queuedIds={queuedIds}
                 isResearching={isResearching}
+                analysingIds={analysingIds}
                 hydrated={hydrated}
                 sort={sort}
                 onSortChange={setSort}

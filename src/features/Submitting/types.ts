@@ -129,6 +129,23 @@ export type EvidenceProposalResponse = {
   generatedAt: string;
 };
 
+/**
+ * Where a variant's wording came from.
+ *
+ * `model` is a tailoring proposal: text nobody wrote, judged by every rule this
+ * feature has. `as-is` is the CV itself, attached to an application without
+ * asking a model anything — the proposal is the document restating itself, so
+ * the rules about *writing* (a headline that must exist, a summary of two or
+ * three sentences, a match for every catalogued requirement) have nothing to
+ * judge and would only reject a CV for being what its author made it.
+ *
+ * Carried on the variant rather than inferred, because the difference has to
+ * survive a reload: rehydration re-runs validation, and a proposal that was
+ * legitimately exempt when written must still be exempt when read back.
+ */
+export const variantOrigins = ['model', 'as-is'] as const;
+export type VariantOrigin = (typeof variantOrigins)[number];
+
 export type EvidenceCvVariant = {
   version: 'evidence-v2';
   id: string;
@@ -150,6 +167,7 @@ export type EvidenceCvVariant = {
     generatedAt: string;
     updatedAt: string;
     language: Locale;
+    origin: VariantOrigin;
   };
 };
 

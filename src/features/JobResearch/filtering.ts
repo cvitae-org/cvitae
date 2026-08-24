@@ -129,6 +129,26 @@ export const parseSalary = (raw?: string): ParsedSalary | null => {
 /* Filtering                                                                  */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Whether the model has read this offer, as opposed to the board describing it.
+ *
+ * `role_profile` is the test because it is the field a board never publishes
+ * and only a reading of the text produces. `company` and `salary` arrive filled
+ * from the scrape, so neither tells an analysed row from an imported one.
+ *
+ * Lives here rather than inline in the page because three places now ask the
+ * same question — the batch count, the filter, and the row's own marker — and
+ * they must not be able to disagree about what "analysed" means.
+ */
+export const isAnalysed = (record: JobRecord): boolean =>
+  isStated(record.role_profile);
+
+/** Analysable means there is stored text to read; researched rows have none. */
+export const isAnalysable = (record: JobRecord): boolean =>
+  !isAnalysed(record) && Boolean(record.offer_text?.trim());
+
+export type Analysis = 'all' | 'analysed' | 'unanalysed';
+
 export type Filters = {
   /** Free text, AND across whitespace-separated terms. */
   query: string;
@@ -138,6 +158,14 @@ export type Filters = {
   contractTypes: string[];
   workModes: WorkMode[];
   statuses: ApplicationStatus[];
+  /**
+   * Separates rows the model has read from rows it has not.
+   *
+   * Three states rather than a boolean: a tab of a thousand imported offers is
+   * worked through by looking at what is left, and reviewed by looking at what
+   * is done, and neither is served by a toggle that can only hide half of it.
+   */
+  analysis: Analysis;
 };
 
 export const emptyFilters: Filters = {
@@ -145,12 +173,14 @@ export const emptyFilters: Filters = {
   salaryOnly: false,
   contractTypes: [],
   workModes: [],
-  statuses: []
+  statuses: [],
+  analysis: 'all'
 };
 
 export const countActiveFilters = (filters: Filters): number =>
   (filters.query.trim() ? 1 : 0) +
   (filters.salaryOnly ? 1 : 0) +
+  (filters.analysis === 'all' ? 0 : 1) +
   filters.contractTypes.length +
   filters.workModes.length +
   filters.statuses.length;
@@ -187,6 +217,10 @@ export const applyFilters = (
 
   return records.filter((record) => {
     if (filters.salaryOnly && !isStated(record.salary)) return false;
+
+    if (filters.analysis !== 'all' && isAnalysed(record) !== (filters.analysis === 'analysed')) {
+      return false;
+    }
 
     if (
       filters.contractTypes.length &&
@@ -349,9 +383,13 @@ export type FacetOptions = {
   workModes: FacetOption<WorkMode>[];
   statuses: FacetOption<ApplicationStatus>[];
   withSalary: number;
+  analysed: number;
+  unanalysed: number;
 };
 
 export const buildFacets = (records: JobRecord[]): FacetOptions => ({
+  analysed: records.filter(isAnalysed).length,
+  unanalysed: records.filter((record) => !isAnalysed(record)).length,
   contractTypes: facet(
     records.map((record) => record.contract_type).filter(isStated) as string[]
   ),

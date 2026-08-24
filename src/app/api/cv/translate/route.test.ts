@@ -14,8 +14,10 @@ vi.mock('@/libs/runtime/client', () => ({
   toRuntimeModel: mocks.toRuntimeModel,
   // Not mocked away: the guard it drives is the difference between delegating
   // a request and refusing it, so the real predicate runs against these bodies.
-  carriesClientKey: (override: { apiKey?: unknown } | undefined) =>
-    typeof override?.apiKey === 'string' && override.apiKey.trim() !== ''
+  // It blocks only a key that cannot reach the runtime safely, and under test
+  // `RUNTIME_URL` is unset — so it defaults to loopback, the key is deliverable,
+  // and a request carrying one is delegated like any other.
+  clientKeyBlocksDelegation: () => false
 }));
 
 import { POST } from './route';

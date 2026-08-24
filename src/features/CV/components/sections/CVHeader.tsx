@@ -11,7 +11,10 @@ import { EntryControls } from "../editing/EntryControls";
 import { useCvDocument } from "../../hooks/useCvDocument";
 import { usePortrait } from "../../hooks/usePortrait";
 import { usePortraitEditor } from "../../contexts/PortraitEditorContext";
-import { backgroundScale, backgroundSvgUrl, portraitWidthRatio, shapeSvgUrl } from "../../portrait";
+import { LINK_SLOTS } from "../../links";
+import { backgroundScale, backgroundSvgUrl, portraitWidthRatio, shapeSvgUrl,
+  portraitSource
+} from "../../portrait";
 import {
   addSkillGroup,
   moveSkillGroup,
@@ -66,11 +69,18 @@ const controlButton =
  * link annotation over the rendered text. The exported file behaves as it did
  * before the migration; the page you can type into does not.
  */
-const linkFields = [
-  { key: "website", placeholder: "yoursite.com" },
-  { key: "github", placeholder: "github.com/you" },
-  { key: "linkedin", placeholder: "linkedin.com/in/you" },
-] as const;
+/**
+ * Three slots, and what they hold is the author's business.
+ *
+ * The placeholders still suggest the usual three, because that is what most
+ * CVs put here and an empty row of identical boxes says nothing. They are hints
+ * only: any slot takes any address, and `LINK_SLOTS` is the same list the ATS
+ * export renders, so what you see here is what a parser reads.
+ */
+const linkFields = LINK_SLOTS.map((key, index) => ({
+  key,
+  placeholder: ["yoursite.com", "github.com/you", "linkedin.com/in/you"][index]
+}));
 
 export function CVHeader() {
   const documentT = useCvDocumentTranslations();
@@ -119,7 +129,7 @@ export function CVHeader() {
                 Submitting there is nothing to edit.
               */}
               <MaskedPortrait
-                src={portrait.image ?? "/me2.png"}
+                src={portraitSource(portrait)}
                 hoverSrc={
                   editPortrait || portrait.image ? undefined : "/me.png"
                 }
@@ -206,7 +216,7 @@ export function CVHeader() {
                     value={document.personal.links[field.key] ?? ""}
                     onCommit={(value) => setLink(locale, field.key, value)}
                     placeholder={field.placeholder}
-                    ariaLabel={t('linkAria', { name: field.key })}
+                    ariaLabel={t('linkAria', { name: index + 1 })}
                     pdfLink={document.personal.links[field.key]}
                     className="hover:text-sky-700 transition-colors underline underline-offset-2"
                   />

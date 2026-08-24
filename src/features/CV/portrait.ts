@@ -13,6 +13,15 @@ import { createPersistedStore } from '@/libs/storage/persistedStore';
  * because they are written rather than translated; a face is not.
  */
 
+/**
+ * The portrait shown when nobody has uploaded one.
+ *
+ * A literal in three places before this — the header, the crop modal and now
+ * the PDF exporter — which is three places that had to agree about which file
+ * in `public/` is the default and no way to notice when they stopped.
+ */
+export const DEFAULT_PORTRAIT_SRC = '/me2.png';
+
 const STORAGE_KEY = 'cvitae.portrait.v1';
 const STORAGE_VERSION = 1;
 
@@ -329,6 +338,10 @@ export const {
   getServerSnapshot: getPortraitServerSnapshot,
   getState: getPortrait
 } = store;
+
+/** The image to draw for a given portrait state: the upload, or the default. */
+export const portraitSource = (state: Pick<PortraitState, 'image'>): string =>
+  state.image ?? DEFAULT_PORTRAIT_SRC;
 
 export const setPortraitImage = (image: string | null) =>
   store.update((current) => ({ ...current, image, zoom: 1, offsetX: 0, offsetY: 0 }));

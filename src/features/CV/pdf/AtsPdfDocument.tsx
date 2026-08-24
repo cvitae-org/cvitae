@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Document as PdfDocument,
+  Image,
   Link,
   Page,
   StyleSheet,
@@ -8,7 +9,8 @@ import {
   View
 } from '@react-pdf/renderer';
 import type { CvDocument } from '../document';
-import { absoluteUrl, uniqueContactLinks } from './contactLinks';
+import { absoluteUrl } from '../links';
+import { uniqueContactLinks } from './contactLinks';
 import type { Locale } from '@/libs/i18n/config';
 
 const headings: Record<
@@ -54,6 +56,19 @@ const styles = StyleSheet.create({
     paddingBottom: 31,
     paddingLeft: 36
   },
+  /**
+   * The header is a row so a portrait can sit beside the name rather than above
+   * it. With no portrait the row holds one child at `flex: 1`, which lays out
+   * exactly as the stacked block it replaced — verified by rendering both.
+   */
+  header: { flexDirection: 'row', alignItems: 'flex-start' },
+  headerText: { flex: 1 },
+  /**
+   * 64×80pt is about 22×28mm, the size a photograph is printed at on a CV in
+   * the markets that expect one. `cover` crops to the box instead of distorting
+   * a photograph that is not exactly 4:5.
+   */
+  portrait: { width: 64, height: 80, marginRight: 12, objectFit: 'cover' },
   name: { fontSize: 20, fontWeight: 700, lineHeight: 1.05 },
   headline: {
     marginTop: 3,
@@ -155,13 +170,29 @@ export type AtsPdfDocumentProps = {
   locale: Locale;
   company?: string;
   targetRole?: string;
+  /**
+   * The photograph, as a JPEG or PNG data URL, or absent for no photograph.
+   *
+   * Prepared by `printablePortrait` rather than taken from the portrait store
+   * directly: what is stored is WebP, which `@react-pdf` cannot decode, at a
+   * size that would push the file past the preflight ceiling.
+   *
+   * Worth stating what this is not for. An ATS reads the text layer and never
+   * looks at an image, so nothing here helps it parse — a photograph on a CV is
+   * for the person who opens the file after the parser has finished with it,
+   * and in the markets that anonymise applications it can count against one.
+   * That is a decision for whoever exports the CV, which is why this is a prop
+   * and not something the component reaches for on its own.
+   */
+  portrait?: string;
 };
 
 export function AtsPdfDocument({
   document,
   locale,
   company,
-  targetRole
+  targetRole,
+  portrait
 }: AtsPdfDocumentProps) {
   const h = headings[locale];
   const role = targetRole?.trim() || document.skills.role;
@@ -177,28 +208,43 @@ export function AtsPdfDocument({
       language={locale === 'pl' ? 'pl-PL' : 'en-GB'}
     >
       <Page size="A4" style={styles.page} wrap>
-        <Text style={styles.name}>{document.personal.name}</Text>
-        {role && <Text style={styles.headline}>{role}</Text>}
+        <View style={styles.header}>
+          {portrait && (
+            /*
+              The a11y rule reads this as an HTML `<img>`. It is @react-pdf's
+              `Image`, whose props have no `alt` — passing one is a type error,
+              and the renderer writes no alternate text into the PDF either way.
+              Nothing is lost: every fact the picture carries is already in the
+              text layer, beginning with the name printed beside it.
+            */
+            // eslint-disable-next-line jsx-a11y/alt-text
+            <Image src={portrait} style={styles.portrait} />
+          )}
+          <View style={styles.headerText}>
+            <Text style={styles.name}>{document.personal.name}</Text>
+            {role && <Text style={styles.headline}>{role}</Text>}
 
-        <View style={styles.contact}>
-          {document.personal.email && (
-            <Link src={`mailto:${document.personal.email}`} style={[styles.contactItem, styles.link]}>
-              {document.personal.email}
-            </Link>
-          )}
-          {document.personal.phone && (
-            <Link src={phoneUrl(document.personal.phone)} style={[styles.contactItem, styles.link]}>
-              {document.personal.phone}
-            </Link>
-          )}
-          {document.personal.location && (
-            <Text style={styles.contactItem}>{document.personal.location}</Text>
-          )}
-          {uniqueContactLinks(document).map((url) => (
-            <Link key={url} src={annotationUrl(url)} style={[styles.contactItem, styles.link]}>
-              {breakableUrl(url)}
-            </Link>
-          ))}
+            <View style={styles.contact}>
+              {document.personal.email && (
+                <Link src={`mailto:${document.personal.email}`} style={[styles.contactItem, styles.link]}>
+                  {document.personal.email}
+                </Link>
+              )}
+              {document.personal.phone && (
+                <Link src={phoneUrl(document.personal.phone)} style={[styles.contactItem, styles.link]}>
+                  {document.personal.phone}
+                </Link>
+              )}
+              {document.personal.location && (
+                <Text style={styles.contactItem}>{document.personal.location}</Text>
+              )}
+              {uniqueContactLinks(document).map((url) => (
+                <Link key={url} src={annotationUrl(url)} style={[styles.contactItem, styles.link]}>
+                  {breakableUrl(url)}
+                </Link>
+              ))}
+            </View>
+          </View>
         </View>
 
         {document.role_description && (
@@ -279,14 +325,30 @@ export function AtsPdfDocument({
 
         {document.certificates.length > 0 && (
           <Section title={h.certificates} keepWithFirst>
+            {/*
+              Shaped like education, deliberately, rather than as a bare header
+              row. Two things had gone wrong and they compounded: the outer View
+              was the header itself, so it missed the `entry` margin every other
+              section gets and consecutive certificates touched; and the issuer
+              was inlined after an em dash, so it landed wherever the name
+              happened to stop wrapping. A certificate whose name runs past one
+              line — the usual length for a course title — therefore ran into
+              the next one and two entries read as a single paragraph, with only
+              the second one's date in the margin to suggest otherwise.
+
+              The text layer already emitted name and issuer as separate lines,
+              so this brings the visible page into line with what an ATS was
+              being handed all along.
+            */}
             {document.certificates.map((item) => (
-              <View key={`${item.name}-${item.issuer}`} style={styles.entryHeader} wrap={false}>
-                <Text style={styles.entryTitle}>
-                  {item.name}{item.issuer ? ` — ${item.issuer}` : ''}
-                </Text>
-                <Text style={styles.date}>
-                  {dateRange(item.started, item.finished, '')}
-                </Text>
+              <View key={`${item.name}-${item.issuer}`} style={styles.entry} wrap={false}>
+                <View style={styles.entryHeader}>
+                  <Text style={styles.entryTitle}>{item.name}</Text>
+                  <Text style={styles.date}>
+                    {dateRange(item.started, item.finished, '')}
+                  </Text>
+                </View>
+                {item.issuer && <Text style={styles.company}>{item.issuer}</Text>}
               </View>
             ))}
           </Section>

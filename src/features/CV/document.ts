@@ -1,5 +1,6 @@
 import type { Locale } from '@/libs/i18n/config';
 import { defaultLocale, locales } from '@/libs/i18n/config';
+import { fillLinkSlots, isLinkSlot } from './links';
 
 /**
  * The CV, as cvitae holds it.
@@ -34,7 +35,7 @@ export type CvPersonal = {
   email: string;
   phone: string;
   location: string;
-  /** Keyed by label: `github`, `linkedin`, `portfolio`. */
+  /** Keyed by slot: see `LINK_SLOTS` in `./links`. Three, holding whatever is put in them. */
   links: Record<string, string>;
 };
 
@@ -227,14 +228,41 @@ const skillGroups = (raw: Record<string, unknown>, locale: Locale): CvSkillGroup
     .filter((group) => group.items.length > 0);
 };
 
+/** The order a document written before the slots has its named keys read in. */
+const LEGACY_LINK_ORDER = ['website', 'github', 'linkedin'];
+
+/**
+ * Fills the three slots from whatever the stored map holds.
+ *
+ * Slots already written win outright, and in their own order: a document that
+ * has been through here before is not re-derived from whatever else the map
+ * still carries. What is left over fills the gaps — the names this CV used to
+ * use first, since those are the ones an author chose, then anything an import
+ * named for itself — and `fillLinkSlots` drops any of it that points where the
+ * CV already points.
+ *
+ * Everything past the third distinct destination is dropped, which is the point:
+ * the map used to be unbounded while the editor showed three keys by name, so
+ * the surplus was invisible on the page and printed by the exports anyway.
+ */
 const links = (value: unknown): Record<string, string> => {
   if (!value || typeof value !== 'object') return {};
 
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .filter(([, url]) => typeof url === 'string' && url)
-      .map(([name, url]) => [name, url as string])
+  const raw = Object.entries(value as Record<string, unknown>).filter(
+    (entry): entry is [string, string] =>
+      typeof entry[1] === 'string' && entry[1].trim() !== ''
   );
+
+  const held = Object.fromEntries(raw.filter(([name]) => isLinkSlot(name)));
+
+  const legacy = LEGACY_LINK_ORDER.flatMap((name) =>
+    raw.filter(([key]) => key === name).map(([, url]) => url)
+  );
+  const invented = raw
+    .filter(([name]) => !isLinkSlot(name) && !LEGACY_LINK_ORDER.includes(name))
+    .map(([, url]) => url);
+
+  return fillLinkSlots(held, [...legacy, ...invented]).links;
 };
 
 /**

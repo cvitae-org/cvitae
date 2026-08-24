@@ -39,6 +39,7 @@ export function Submitting() {
     activeId,
     hydrated,
     generateCv,
+    attachCvAsIs,
     draftEmail,
     pending,
     error,
@@ -130,6 +131,7 @@ export function Submitting() {
                   // be in flight at a time.
                   error={error ?? analysisError}
                   onGenerateCv={generateCv}
+                  onAttachCvAsIs={attachCvAsIs}
                   onDraftEmail={draftEmail}
                   onDismissError={() => {
                     clearError();

@@ -25,6 +25,7 @@ import {
   buildEvidenceRequest,
   carryDecisions,
   createEvidenceVariant,
+  createIdentityVariant,
   EVIDENCE_SECTIONS,
   EvidenceValidationError,
   identityProposal,
@@ -252,6 +253,43 @@ export const useSubmitting = () => {
     [call]
   );
 
+  /**
+   * Attaches the master CV to this application without asking a model.
+   *
+   * Synchronous and free: there is no request to make, so there is no pending
+   * state to hold and nothing to fail except the variant refusing to build,
+   * which would mean the CV itself cannot pass its own checks. That is worth
+   * surfacing in the same place a rejected generation is.
+   */
+  const attachCvAsIs = useCallback((submission: Submission) => {
+    setError(null);
+    try {
+      setEvidenceCV(
+        submission.id,
+        createIdentityVariant({
+          sourceCv: getCvState()[submission.language],
+          sourceOffer: submission.offer,
+          language: submission.language
+        })
+      );
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof EvidenceValidationError
+          ? {
+              code: 'submitting.evidenceRejected',
+              detail: cause.issues.slice(0, 3).join(' ')
+            }
+          : {
+              code: 'submitting.materializeFailed',
+              detail:
+                cause instanceof Error ? cause.message.slice(0, 500) : undefined
+            }
+      );
+      return false;
+    }
+  }, []);
+
   /** Drafts the email the CV is attached to. Overwrites whatever is there. */
   const draftEmail = useCallback(
     async (submission: Submission) => {
@@ -299,6 +337,7 @@ export const useSubmitting = () => {
     activeId,
     hydrated,
     generateCv,
+    attachCvAsIs,
     draftEmail,
     pending,
     error,

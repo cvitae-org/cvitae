@@ -1,4 +1,5 @@
 import type { CvDocument } from './document';
+import { LINK_SLOTS, fillLinkSlots } from './links';
 
 /**
  * Folding an imported document into the one already here.
@@ -93,12 +94,21 @@ export const mergeDocument = (
     }
   }
 
-  for (const [name, url] of Object.entries(incoming.personal.links)) {
-    if (!personal.links[name] && url.trim()) {
-      personal.links[name] = url.trim();
-      filled.push(`links.${name}`);
-    }
-  }
+  /*
+   * Links fill by position and by destination, not by key.
+   *
+   * Filling `links[name]` when that name was free was how an import put the
+   * same site into two of the three slots: the CV already had it in slot one,
+   * the import offered it again in slot two spelled with a scheme and a
+   * trailing slash, and nothing compared the two. `fillLinkSlots` skips a
+   * candidate the CV already points at, and still never overwrites.
+   */
+  const mergedLinks = fillLinkSlots(
+    personal.links,
+    LINK_SLOTS.map((slot) => incoming.personal.links[slot] ?? '')
+  );
+  personal.links = mergedLinks.links;
+  for (const slot of mergedLinks.filled) filled.push(`links.${slot}`);
 
   let role_description = existing.role_description;
   if (isBlank(role_description) && !isBlank(incoming.role_description)) {
