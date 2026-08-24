@@ -62,6 +62,10 @@ describe('mergeTranslatedGaps', () => {
 
   it('respects the selected sections', () => {
     const target = polish();
+    // Counted off the seed rather than written as a literal: how many bullets
+    // the first role happens to have is the sample CV's business, and pinning
+    // it here made editing that file fail a test about section selection.
+    const bulletsAfterPop = polish().experience[0]!.highlights.length - 1;
     target.role_description = '';
     target.experience[0]?.highlights.pop();
 
@@ -73,7 +77,7 @@ describe('mergeTranslatedGaps', () => {
     );
 
     expect(result.document.role_description).toBe(polish().role_description);
-    expect(result.document.experience[0]?.highlights).toHaveLength(4);
+    expect(result.document.experience[0]?.highlights).toHaveLength(bulletsAfterPop);
     expect(sectionHasTranslationGaps(target, english(), 'experience')).toBe(true);
   });
 });

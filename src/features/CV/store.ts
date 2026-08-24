@@ -28,13 +28,19 @@ import { seedDocument, seedState } from './seed';
  * Seeded on first run from `./seed`, which is this CV committed to the repo,
  * one document per language.
  *
- * This reverses what the comment here used to say — that the only way in was an
- * import, because a CV arriving pre-filled with someone else's details is worse
- * than one that says what to do next. That reasoning holds for a blank tool
- * someone else installs. It does not hold for the site whose whole purpose is
- * to be *this* CV: there, an empty first render is not an invitation, it is the
- * page failing to show the thing it exists for, and clearing site data meant
- * losing the document with no way back.
+ * The seed is sample data, and has been since the author's own CV came out of
+ * the repository — the details in `./seed` belong to nobody, and the point of
+ * shipping them is that the first render shows a filled CV rather than an empty
+ * page explaining what one would look like. That is worth more than the purity
+ * of an empty start: the layout, the pagination and both PDF exports are only
+ * legible against a document with something in them, and a tool whose first
+ * screen is blank has to be understood before it can be tried.
+ *
+ * This still reverses what the comment here originally said — that the only way
+ * in was an import, because a CV pre-filled with someone else's details is
+ * worse than one that says what to do next. What broke that argument was not
+ * whose CV it was but where it lived: with the document in IndexedDB and
+ * nothing else, clearing site data lost it with no way back.
  *
  * The seed only ever fills a locale storage has no record of. Once a document
  * has been written it is authoritative, including when what was written is

@@ -123,16 +123,16 @@ export function CVHeader() {
                 overlay, because anything drawn over the portrait would be drawn
                 into the exported PDF too.
 
-                `hoverSrc` is what a click used to do: swap the built-in pair.
-                It survives only where the portrait is not editable, since one
-                click cannot mean two things, and on a frozen variant in
-                Submitting there is nothing to edit.
+                There is no `hoverSrc` any more. It swapped between the two
+                built-in photographs on hover, and survived only where the
+                portrait was not editable — but the pair it swapped between was
+                the author's own face, which came out of `public/` along with
+                the rest of the personal data. One placeholder has nothing to
+                swap with, and inventing a second pose for it would be a hover
+                state that says nothing.
               */}
               <MaskedPortrait
                 src={portraitSource(portrait)}
-                hoverSrc={
-                  editPortrait || portrait.image ? undefined : "/me.png"
-                }
                 alt={document.personal.name || documentT("sections.contact")}
                 onActivate={editPortrait ?? undefined}
                 actionLabel={t("editPortrait")}

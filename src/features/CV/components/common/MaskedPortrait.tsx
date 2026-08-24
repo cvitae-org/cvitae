@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { applyMaskToCanvas } from "../../utils/canvasMasking";
 
 interface MaskedPortraitProps {
@@ -8,14 +8,15 @@ interface MaskedPortraitProps {
   alt: string;
   maskSrc: string;
   className?: string;
-  hoverSrc?: string;
   transitionDurationMs?: number;
   /**
    * Makes the portrait a way into the editor.
    *
-   * Takes over the click entirely rather than sitting beside it: a single
-   * gesture cannot both swap the built-in pair and open a modal, and where the
-   * picture is editable, editing it is what clicking it should mean.
+   * It owns the click outright. It used to share the gesture with a swap
+   * between the two built-in photographs, which could not work — one click
+   * cannot both change the picture and open a modal — and where the picture
+   * is editable, editing it is what clicking it should mean. The pair is
+   * gone now, so opening the editor is the only thing a click can mean.
    */
   onActivate?: () => void;
   /** Replaces `alt` on the control when it does something. */
@@ -37,7 +38,6 @@ export function MaskedPortrait({
   alt,
   maskSrc,
   className = "",
-  hoverSrc,
   transitionDurationMs = 250,
   zoom = 1,
   offsetX = 0,
@@ -46,8 +46,6 @@ export function MaskedPortrait({
   actionLabel,
 }: MaskedPortraitProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const hoverCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [isToggled, setIsToggled] = useState(false);
 
   const baseStyle: React.CSSProperties = {
     display: "block",
@@ -74,33 +72,7 @@ export function MaskedPortrait({
     });
   }, [src, maskSrc, zoom, offsetX, offsetY]);
 
-  useEffect(() => {
-    if (!hoverSrc) return;
-
-    const canvas = hoverCanvasRef.current;
-    if (!canvas) return;
-
-    applyMaskToCanvas({
-      canvas,
-      imageSrc: hoverSrc,
-      maskSrc,
-      scale: 1,
-      size: 280,
-      zoom,
-      offsetX,
-      offsetY,
-    }).catch((error) => {
-      console.error("Failed to apply mask to hover portrait:", error);
-    });
-  }, [hoverSrc, maskSrc, zoom, offsetX, offsetY]);
-
-  const toggles = Boolean(hoverSrc) && !onActivate;
-  const interactive = Boolean(onActivate) || toggles;
-
-  const activate = () => {
-    if (onActivate) onActivate();
-    else if (toggles) setIsToggled((prev) => !prev);
-  };
+  const interactive = Boolean(onActivate);
 
   return (
     <div
@@ -110,40 +82,20 @@ export function MaskedPortrait({
       className={`relative inline-block ${
         onActivate ? "cursor-pointer" : ""
       } ${className}`}
-      onClick={() => interactive && activate()}
+      onClick={() => onActivate?.()}
       onKeyDown={(event) => {
-        if (!interactive) return;
+        if (!onActivate) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          activate();
+          onActivate();
         }
       }}
       title={onActivate ? actionLabel : undefined}
       role={interactive ? "button" : "img"}
       aria-label={onActivate ? actionLabel ?? alt : alt}
-      aria-pressed={toggles ? isToggled : undefined}
       tabIndex={interactive ? 0 : undefined}
     >
-      <canvas
-        ref={canvasRef}
-        style={{
-          ...baseStyle,
-          opacity: toggles && isToggled ? 0 : 1,
-        }}
-      />
-      {toggles && (
-        <canvas
-          ref={hoverCanvasRef}
-          style={{
-            ...baseStyle,
-            position: "absolute",
-            inset: 0,
-            opacity: isToggled ? 1 : 0,
-            filter: "brightness(1.4)",
-          }}
-          aria-hidden={!isToggled}
-        />
-      )}
+      <canvas ref={canvasRef} style={baseStyle} />
     </div>
   );
 }

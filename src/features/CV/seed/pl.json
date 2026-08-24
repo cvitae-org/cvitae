@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "updated_at": "2026-08-15T00:00:00.000Z",
+  "updated_at": "2026-08-24T00:00:00.000Z",
   "personal": {
-    "name": "Dominik Beń",
-    "email": "bendominik@gmail.com",
-    "phone": "+48 518-304-803",
+    "name": "Anna Kowalska",
+    "email": "anna.kowalska@example.com",
+    "phone": "+48 123 456 789",
     "location": "",
     "links": {
-      "link1": "bendominik.eu",
-      "link2": "github.com/fijisoo",
-      "link3": "linkedin.com/in/dominik-ben/"
+      "link1": "anna-kowalska.example.com",
+      "link2": "github.example.com/anna-kowalska",
+      "link3": "linkedin.example.com/in/anna-kowalska"
     }
   },
-  "role_description": "Ponad 8 lat doświadczenia w tworzeniu skalowalnych aplikacji internetowych. Specjalizuję się w React i Next.js, z silnym naciskiem na architekturę aplikacji i UX. Pasjonat nowych technologii, w tym Web3 i blockchain.",
+  "role_description": "Frontend developerka z ośmioletnim doświadczeniem w budowaniu i utrzymywaniu aplikacji webowych w React i TypeScript. Najlepiej czuję się w pracy nad systemem projektowym: wspólnymi komponentami, dostępnością i testami, dzięki którym zespół może je bez obaw zmieniać.",
   "skills": {
     "role": "FRONTEND DEVELOPER",
     "groups": [
@@ -20,11 +20,10 @@
         "label": "Języki",
         "items": [
           "JavaScript",
+          "TypeScript",
           "HTML",
           "CSS",
-          "JSX",
-          "TypeScript",
-          "Rust"
+          "SQL"
         ]
       },
       {
@@ -32,151 +31,91 @@
         "items": [
           "React",
           "Next.js",
-          "Strapi",
-          "Express",
           "Node.js",
-          "Gatsby"
+          "Express",
+          "Vitest"
         ]
       },
       {
         "label": "Biblioteki i narzędzia",
         "items": [
-          "Redux",
-          "Jotai",
-          "NX",
-          "Storybook",
-          "JFrog",
+          "Redux Toolkit",
           "React Query",
           "React Hook Form",
-          "React Router",
-          "Webpack",
+          "Storybook",
           "Vite",
+          "Webpack",
           "GraphQL",
-          "i18next"
+          "Playwright"
         ]
       },
       {
         "label": "Stylowanie i design",
         "items": [
-          "Design System",
+          "Systemy projektowe",
+          "Tailwind",
           "CSS Modules",
           "SCSS",
-          "Tailwind",
           "Styled Components",
-          "Chakra UI",
-          "Figma",
-          "Photoshop"
-        ]
-      },
-      {
-        "label": "Inne technologie",
-        "items": [
-          "WAGMI",
-          "ethers.js",
-          "ICP Blockchain SDK",
-          "Docker",
-          "Vercel",
-          "Netlify",
-          "Git",
-          "Jira"
+          "Figma"
         ]
       }
     ]
   },
   "experience": [
     {
-      "company": "RUNNR Trade",
-      "title": "Lead Frontend Developer",
-      "started": "Czerwiec 2025",
+      "company": "Fabrikam Sp. z o.o.",
+      "title": "Senior Frontend Developer",
+      "started": "Marzec 2022",
       "finished": null,
       "highlights": [
-        "Kierowałem architekturą frontendową platformy handlowej DeFi opartej na Solanie, dostarczając aktualizacje WebSocket w czasie poniżej sekundy dla śledzenia portfeli w czasie rzeczywistym i wykonywania transakcji.",
-        "Zaprojektowałem dashboard analityczny portfolio z live PnL, śledzeniem pozycji i metrykami wydajności tokenów, przetwarzając tysiące zdarzeń on-chain.",
-        "Zaprojektowałem modułową architekturę komponentów używając Zustand, React Query i TypeScript, redukując złożoność kodu.",
-        "Dostarczyłem gotowy do produkcji interfejs handlowy z integracją TradingView, przeciąganymi układami i responsywnymi tabelami zoptymalizowanymi dla strumieni danych wysokiej częstotliwości.",
-        "Ustanowiłem wzorce domain driven i separation of concerns jako standardy frontendowe dla całego zespołu."
+        "Poprowadziłam przebudowę portalu klienta w Next.js, skracając czas pierwszego ładowania z 4,1 s do 1,3 s na średniej klasy telefonie.",
+        "Wprowadziłam wspólną bibliotekę komponentów używaną przez cztery zespoły produktowe, w miejsce trzech rozjeżdżających się zestawów formularzy.",
+        "Podniosłam pokrycie testami e2e ścieżki zakupowej z 20% do 85% w Playwright, wyłapując dwie regresje przed wydaniem.",
+        "Prowadziłam mentoring trojga młodszych programistów poprzez code review i wspólne debugowanie."
       ],
       "skills": []
     },
     {
-      "company": "Własny projekt na technologii ICP Blockchain",
-      "title": "Założyciel / Blockchain Developer",
-      "started": "Lipiec 2023",
-      "finished": "Maj 2025",
-      "highlights": [
-        "Pracowałem nad uruchomieniem start-upu opartego na technologii ICP Blockchain, skupiającego się na tworzeniu platformy NFT dla artystów muzycznych.",
-        "Rozwinąłem umiejętności w zakresie zarządzania projektem, planowania strategicznego oraz prowadzenia dokumentacji technicznej.",
-        "Współpracowałem ze społecznością ICP oraz uczestniczyłem w programach grantowych, co pozwoliło mi na nawiązanie wartościowych kontaktów biznesowych.",
-        "Nauczyłem się radzić z wyzwaniami związanymi z prowadzeniem własnego biznesu, takimi jak pozyskiwanie funduszy czy przygotowywanie szczegółowej dokumentacji technicznej.",
-        "Opracowałem koncepcję i architekturę aplikacji, w tym komunikację między kanistrami i integrację z siecią blockchain."
-      ],
-      "skills": []
-    },
-    {
-      "company": "Inter Cars S.A.",
+      "company": "Contoso Retail",
       "title": "Frontend Developer",
-      "started": "Czerwiec 2019",
-      "finished": "Czerwiec 2023",
+      "started": "Styczeń 2020",
+      "finished": "Luty 2022",
       "highlights": [
-        "Zrefaktoryzowałem aplikację z komponentów klasowych React do hooków, znacznie poprawiając wydajność aplikacji oraz czytelność kodu.",
-        "Tworzyłem atomy, moduły, oraz całe layouty wraz z zaawansowaną implementacją architektury aplikacji frontendowych dedykowanych na rynki zagraniczne.",
-        "Współpracowałem w międzynarodowym zespole w metodyce SCRUM.",
-        "Pełniłem rolę kluczowego członka zespołu frontendowego, uczestnicząc w tworzeniu nowego sklepu internetowego od podstaw."
+        "Przeprowadziłam etapami migrację kodu React z komponentów klasowych na hooki, utrzymując aplikację gotową do wydania.",
+        "Zbudowałam dostępny interfejs filtrowania produktów, zaudytowany względem WCAG 2.1 AA.",
+        "Wspólnie z projektantami zamieniłam doraźne arkusze stylów w udokumentowany zestaw tokenów."
       ],
       "skills": []
     },
     {
-      "company": "Gameswift",
-      "title": "Senior Frontend Developer",
-      "started": "Wrzesień 2022",
-      "finished": "Marzec 2023",
-      "highlights": [
-        "Prowadziłem code review i uczestniczyłem w dyskusjach na temat rozwoju aplikacji pod kątem technicznym.",
-        "Opracowałem serwis umożliwiający pobieranie gier Web3, wykorzystując nowoczesne technologie frontendowe i narzędzia do interakcji z blockchainem.",
-        "Utrzymywałem i optymalizowałem landing page.",
-        "Zbudowałem narzędzie do autoryzacji OAuth przez aplikacje zewnętrzne poprawiając bezpieczeństwo i wygodę logowania użytkowników.",
-        "Zajmowałem się implementacją deep linków przekierowujących użytkowników do desktopowego launchera, usprawniając integrację między aplikacjami."
-      ],
-      "skills": []
-    },
-    {
-      "company": "Softwarehood",
-      "title": "Fullstack Engineer",
-      "started": "Październik 2019",
-      "finished": "Październik 2020",
-      "highlights": [
-        "Opracowałem system do ewidencji czasu, usprawniając proces raportowania.",
-        "Samodzielnie opracowałem backendowy moduł płatności dla aplikacji webowej, integrując systemy płatnicze i zapewniając bezpieczne transakcje online."
-      ],
-      "skills": []
-    },
-    {
-      "company": "7ninjas (Freelance)",
+      "company": "Northwind Labs",
       "title": "Frontend Developer",
-      "started": "Październik 2018",
-      "finished": "Styczeń 2019",
+      "started": "Wrzesień 2018",
+      "finished": "Grudzień 2019",
       "highlights": [
-        "Współtworzyłem projekty oparte na nowoczesnych frameworkach do budowy aplikacji internetowych, wykorzystując zaawansowane metody zarządzania stanem aplikacji oraz obsługę operacji asynchronicznych, co zwiększyło responsywność i interaktywność aplikacji.",
-        "Prowadziłem code review oraz uczestniczyłem w procesie wyceny projektów, co pozwoliło na efektywną realizację zadań i optymalizację kosztów."
+        "Tworzyłam wewnętrzne dashboardy raportowe obsługujące dziesiątki tysięcy wierszy dzięki wirtualizowanym tabelom.",
+        "Dodałam warstwę danych w GraphQL, która zastąpiła sześć doraźnych endpointów REST.",
+        "Uruchomiłam pierwszy w zespole pipeline CI z lintem, sprawdzaniem typów i testami jednostkowymi."
       ],
       "skills": []
     },
     {
-      "company": "Britenet",
+      "company": "Adventure Works",
       "title": "Junior Frontend Developer",
-      "started": "Marzec 2018",
-      "finished": "Wrzesień 2018",
+      "started": "Lipiec 2017",
+      "finished": "Sierpień 2018",
       "highlights": [
-        "Prowadziłem code review i współpracowałem z zespołem w celu optymalizacji kodu.",
-        "Budowałem aplikacje SaaS przy użyciu nowoczesnych technologii w metodyce SCRUM."
+        "Wdrażałam responsywne strony marketingowe na podstawie projektów z Figmy.",
+        "Brałam udział w code review i estymacjach w pięcioosobowym zespole scrumowym."
       ],
       "skills": []
     }
   ],
   "education": [
     {
-      "university": "Politechnika Lubelska",
-      "degree": "Magister Inżynier (Informatyka, specjalizacja aplikacje internetowe)",
+      "university": "Politechnika Przykładowa",
+      "degree": "Magister inżynier, Informatyka",
       "started": "2012",
       "finished": "2017",
       "thesis": "",
@@ -185,24 +124,28 @@
   ],
   "certificates": [
     {
-      "name": "Zbudowanie podstawowego projektu - ICP Chat na sieci Internet Computer",
-      "issuer": "Projekt z użyciem języka Rust, Vue oraz TypeScript",
-      "started": "29-31.07.2024",
+      "name": "Dostępność dla programistów front-end",
+      "issuer": "Przykładowy Instytut Szkoleniowy",
+      "started": "2024",
       "finished": null
     }
   ],
   "languages": [
     {
+      "name": "Polski",
+      "level": "Ojczysty"
+    },
+    {
       "name": "Angielski",
-      "level": "B2"
+      "level": "C1"
     }
   ],
   "consent": "Wyrażam zgodę na przetwarzanie moich danych osobowych zawartych w tym CV, w tym wizerunku, na potrzeby prowadzonej rekrutacji oraz przyszłych procesów rekrutacyjnych.",
   "sources": [
     {
-      "kind": "seed",
-      "reference": "messages/pl.json",
-      "imported_at": "2026-08-15T00:00:00.000Z"
+      "kind": "sample",
+      "reference": "seed/pl.json",
+      "imported_at": "2026-08-24T00:00:00.000Z"
     }
   ]
 }

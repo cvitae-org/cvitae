@@ -1,18 +1,18 @@
 {
   "version": 1,
-  "updated_at": "2026-08-15T00:00:00.000Z",
+  "updated_at": "2026-08-24T00:00:00.000Z",
   "personal": {
-    "name": "Dominik Beń",
-    "email": "bendominik@gmail.com",
-    "phone": "+48 518-304-803",
+    "name": "Anna Kowalska",
+    "email": "anna.kowalska@example.com",
+    "phone": "+48 123 456 789",
     "location": "",
     "links": {
-      "link1": "bendominik.eu",
-      "link2": "github.com/fijisoo",
-      "link3": "linkedin.com/in/dominik-ben/"
+      "link1": "anna-kowalska.example.com",
+      "link2": "github.example.com/anna-kowalska",
+      "link3": "linkedin.example.com/in/anna-kowalska"
     }
   },
-  "role_description": "Over 8 years of experience in creating scalable web applications. I specialize in React and Next.js, with a strong focus on application architecture and UX. Passionate about new technologies, including Web3 and blockchain.",
+  "role_description": "Frontend developer with eight years of experience building and maintaining web applications in React and TypeScript. Most at home in a design system: shared components, accessibility, and the test coverage that lets a team change them without fear.",
   "skills": {
     "role": "FRONTEND DEVELOPER",
     "groups": [
@@ -20,11 +20,10 @@
         "label": "Languages",
         "items": [
           "JavaScript",
+          "TypeScript",
           "HTML",
           "CSS",
-          "JSX",
-          "TypeScript",
-          "Rust"
+          "SQL"
         ]
       },
       {
@@ -32,151 +31,91 @@
         "items": [
           "React",
           "Next.js",
-          "Strapi",
-          "Express",
           "Node.js",
-          "Gatsby"
+          "Express",
+          "Vitest"
         ]
       },
       {
         "label": "Libraries & Tools",
         "items": [
-          "Redux",
-          "Jotai",
-          "NX",
-          "Storybook",
-          "JFrog",
+          "Redux Toolkit",
           "React Query",
           "React Hook Form",
-          "React Router",
-          "Webpack",
+          "Storybook",
           "Vite",
+          "Webpack",
           "GraphQL",
-          "i18next"
+          "Playwright"
         ]
       },
       {
         "label": "Styling & Design",
         "items": [
-          "Design System",
+          "Design systems",
+          "Tailwind",
           "CSS Modules",
           "SCSS",
-          "Tailwind",
           "Styled Components",
-          "Chakra UI",
-          "Figma",
-          "Photoshop"
-        ]
-      },
-      {
-        "label": "Other Technologies",
-        "items": [
-          "WAGMI",
-          "ethers.js",
-          "ICP Blockchain SDK",
-          "Docker",
-          "Vercel",
-          "Netlify",
-          "Git",
-          "Jira"
+          "Figma"
         ]
       }
     ]
   },
   "experience": [
     {
-      "company": "RUNNR Trade",
-      "title": "Lead Frontend Developer",
-      "started": "June 2025",
+      "company": "Fabrikam Sp. z o.o.",
+      "title": "Senior Frontend Developer",
+      "started": "March 2022",
       "finished": null,
       "highlights": [
-        "Led frontend architecture for a Solana-based DeFi trading platform, delivering sub-second WebSocket updates for real-time wallet tracking and trade execution.",
-        "Engineered portfolio analytics dashboard with live PnL, position tracking, and token performance metrics—processing thousands of on-chain events.",
-        "Designed modular component architecture using Zustand, React Query, and strict TypeScript, reducing codebase complexity.",
-        "Shipped production-ready trading UI with TradingView integration, draggable layouts, and responsive tables optimized for high-frequency data streams.",
-        "Established domain-driven patterns and separation of concerns adopted as team-wide frontend standards."
+        "Led the rebuild of a customer portal in Next.js, cutting first-load time from 4.1s to 1.3s on mid-range mobile hardware.",
+        "Introduced a shared component library used by four product teams, replacing three divergent sets of form controls.",
+        "Raised end-to-end coverage of the checkout path from 20% to 85% with Playwright, catching two regressions before release.",
+        "Mentored three junior developers through code review and paired debugging sessions."
       ],
       "skills": []
     },
     {
-      "company": "Own project on ICP Blockchain technology",
-      "title": "Founder / Blockchain Developer",
-      "started": "July 2023",
-      "finished": "May 2025",
-      "highlights": [
-        "Worked on launching a startup based on ICP Blockchain technology, focusing on creating an NFT platform for music artists.",
-        "Developed skills in project management, strategic planning, and technical documentation.",
-        "Collaborated with the ICP community and participated in grant programs, enabling valuable business connections.",
-        "Learned to handle challenges related to running my own business, such as fundraising and preparing detailed technical documentation.",
-        "Developed the concept and architecture of the application, including communication between canisters and blockchain network integration."
-      ],
-      "skills": []
-    },
-    {
-      "company": "Inter Cars S.A.",
+      "company": "Contoso Retail",
       "title": "Frontend Developer",
-      "started": "June 2019",
-      "finished": "June 2023",
+      "started": "January 2020",
+      "finished": "February 2022",
       "highlights": [
-        "Refactored the application from class-based React to hooks, significantly improving application performance and code readability.",
-        "Created atoms, modules, and entire layouts with advanced implementation of frontend application architecture dedicated to foreign markets.",
-        "Collaborated in an international team using SCRUM methodology.",
-        "Served as a key member of the frontend team, participating in building a new online store from scratch."
+        "Migrated a class-based React codebase to hooks in stages, keeping the application shippable throughout.",
+        "Built an accessible product filtering interface audited against WCAG 2.1 AA.",
+        "Worked with designers to turn an ad-hoc style sheet into a documented token set."
       ],
       "skills": []
     },
     {
-      "company": "Gameswift",
-      "title": "Senior Frontend Developer",
-      "started": "September 2022",
-      "finished": "March 2023",
-      "highlights": [
-        "Conducted code reviews and participated in discussions on application development from a technical perspective.",
-        "Developed a service enabling Web3 game downloads, using modern frontend technologies and blockchain interaction tools.",
-        "Maintained and optimized the landing page.",
-        "Built an OAuth authorization tool for external applications, improving security and user login convenience.",
-        "Implemented deep links redirecting users to the desktop launcher, streamlining integration between applications."
-      ],
-      "skills": []
-    },
-    {
-      "company": "Softwarehood",
-      "title": "Fullstack Engineer",
-      "started": "October 2019",
-      "finished": "October 2020",
-      "highlights": [
-        "Developed a time tracking system, streamlining the reporting process.",
-        "Independently developed a backend payment module for a web application, integrating payment systems and ensuring secure online transactions."
-      ],
-      "skills": []
-    },
-    {
-      "company": "7ninjas (Freelance)",
+      "company": "Northwind Labs",
       "title": "Frontend Developer",
-      "started": "October 2018",
-      "finished": "January 2019",
+      "started": "September 2018",
+      "finished": "December 2019",
       "highlights": [
-        "Co-created projects based on modern frameworks for building web applications, using advanced application state management methods and asynchronous operations handling, which increased application responsiveness and interactivity.",
-        "Conducted code reviews and participated in project estimation processes, enabling effective task execution and cost optimization."
+        "Developed internal dashboards for reporting, handling tens of thousands of rows with virtualised tables.",
+        "Added a GraphQL data layer that replaced six ad-hoc REST endpoints.",
+        "Set up the team's first CI pipeline for linting, type checking, and unit tests."
       ],
       "skills": []
     },
     {
-      "company": "Britenet",
+      "company": "Adventure Works",
       "title": "Junior Frontend Developer",
-      "started": "March 2018",
-      "finished": "September 2018",
+      "started": "July 2017",
+      "finished": "August 2018",
       "highlights": [
-        "Conducted code reviews and collaborated with the team to optimize code.",
-        "Built SaaS applications using modern technologies in SCRUM methodology."
+        "Implemented responsive marketing pages from Figma designs.",
+        "Took part in code review and estimation as part of a five-person Scrum team."
       ],
       "skills": []
     }
   ],
   "education": [
     {
-      "university": "Lublin University of Technology",
-      "degree": "Master of Engineering (Computer Science, specialization in web applications)",
+      "university": "Example University of Technology",
+      "degree": "Master of Engineering, Computer Science",
       "started": "2012",
       "finished": "2017",
       "thesis": "",
@@ -185,24 +124,28 @@
   ],
   "certificates": [
     {
-      "name": "Building a basic project - ICP Chat on Internet Computer network",
-      "issuer": "Project using Rust, Vue and TypeScript",
-      "started": "29-31.07.2024",
+      "name": "Accessibility for Web Developers",
+      "issuer": "Example Training Institute",
+      "started": "2024",
       "finished": null
     }
   ],
   "languages": [
     {
+      "name": "Polish",
+      "level": "Native"
+    },
+    {
       "name": "English",
-      "level": "B2"
+      "level": "C1"
     }
   ],
   "consent": "I consent to the processing of my personal data, including my photograph, for the purposes of this and future recruitment processes.",
   "sources": [
     {
-      "kind": "seed",
-      "reference": "messages/en.json",
-      "imported_at": "2026-08-15T00:00:00.000Z"
+      "kind": "sample",
+      "reference": "seed/en.json",
+      "imported_at": "2026-08-24T00:00:00.000Z"
     }
   ]
 }

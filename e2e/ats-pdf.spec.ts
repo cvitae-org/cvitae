@@ -132,13 +132,13 @@ for (const locale of ['en', 'pl'] as const) {
     const result = await inspectPdf(filename);
     expect(result.pageCount).toBeLessThanOrEqual(2);
     expect(result.size).toBeLessThan(2_500_000);
-    expect(result.text).toContain('Dominik Beń');
+    expect(result.text).toContain('Anna Kowalska');
     expect(result.text).not.toContain('\uFFFD');
     expect(result.fonts.length).toBeGreaterThan(0);
     expect(result.hasEmbeddedDejaVu).toBe(true);
-    expect(result.links).toContain('mailto:bendominik@gmail.com');
-    expect(result.links).toContain('tel:+48518304803');
-    expect(result.links.some((link) => link.includes('github.com/fijisoo'))).toBe(true);
+    expect(result.links).toContain('mailto:anna.kowalska@example.com');
+    expect(result.links).toContain('tel:+48123456789');
+    expect(result.links.some((link) => link.includes('github.example.com/anna-kowalska'))).toBe(true);
 
     if (locale === 'pl') {
       expect(result.text).toMatch(/Podsumowanie Zawodowe/i);
@@ -152,8 +152,8 @@ for (const locale of ['en', 'pl'] as const) {
     }
 
     const info = result.metadata.info as Record<string, unknown>;
-    expect(String(info.Title)).toContain('Dominik Beń');
-    expect(String(info.Author)).toBe('Dominik Beń');
+    expect(String(info.Title)).toContain('Anna Kowalska');
+    expect(String(info.Author)).toBe('Anna Kowalska');
 
     if (locale === 'en') {
       await renderFirstPdfPage(page, filename);
@@ -190,11 +190,11 @@ test('designed PDF keeps its searchable layer and ignores a decoy preview root',
   const filename = path.join(testInfo.outputDir, 'cv-designed.pdf');
   await download.saveAs(filename);
   const result = await inspectPdf(filename);
-  expect(result.text).toContain('Dominik Beń');
+  expect(result.text).toContain('Anna Kowalska');
   expect(result.text).toContain('Work Experience');
   expect(result.text).not.toContain('DECOY SHOULD NEVER BE EXPORTED');
   expect(result.text).not.toMatch(/\+\s*Add\b|\bRemove\b/);
-  expect(result.links.some((link) => link.includes('github.com/fijisoo'))).toBe(true);
+  expect(result.links.some((link) => link.includes('github.example.com/anna-kowalska'))).toBe(true);
   expect(result.size).toBeLessThan(2_500_000);
 });
 
@@ -398,5 +398,5 @@ test('downloads the frozen approved evidence variant rather than the live page C
   const result = await inspectPdf(filename);
   expect(result.text).toContain('Ada Żółć');
   expect(result.text).toContain('I build accessible React interfaces for internal teams.');
-  expect(result.text).not.toContain('Dominik Beń');
+  expect(result.text).not.toContain('Anna Kowalska');
 });

@@ -20,7 +20,7 @@ import { createPersistedStore } from '@/libs/storage/persistedStore';
  * the PDF exporter — which is three places that had to agree about which file
  * in `public/` is the default and no way to notice when they stopped.
  */
-export const DEFAULT_PORTRAIT_SRC = '/me2.png';
+export const DEFAULT_PORTRAIT_SRC = '/portrait-placeholder.svg';
 
 const STORAGE_KEY = 'cvitae.portrait.v1';
 const STORAGE_VERSION = 1;

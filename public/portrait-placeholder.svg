@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="800" viewBox="0 0 640 800" role="img" aria-label="Portrait placeholder">
+  <!--
+    The sample CV's portrait: nobody in particular.
+
+    Explicit width and height, not only a viewBox. `printablePortrait` reads
+    `image.width`/`image.height` off a loaded `<img>` to size its canvas, and an
+    SVG that declares no intrinsic size reports zero there in some browsers —
+    which would round the export's canvas down to a 1x1 pixel.
+
+    640x800 is 4:5, the ratio of the 64x80pt box the photograph prints at, so
+    the placeholder fills the mask the way a portrait shot does and the framing
+    sliders start from a sensible crop.
+  -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8FCBFF"/>
+      <stop offset="100%" stop-color="#4E9BD6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="640" height="800" fill="url(#ground)"/>
+
+  <!--
+    Head and shoulders, kept well inside the frame on purpose. The silhouette
+    this sits in is adjustable — waves, corner rounding, and a zoom the reader
+    can push to 3x — so the figure is drawn small and centred with ~170px of
+    margin each side. A crop has to eat more than a quarter of the width before
+    it reaches the shoulders, which no preset does.
+  -->
+  <g fill="#FFFFFF" fill-opacity="0.92">
+    <circle cx="320" cy="300" r="100"/>
+    <path d="M320 432c-101 0-183 70-183 157v119h366V589c0-87-82-157-183-157z"/>
+  </g>
+</svg>

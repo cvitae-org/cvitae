@@ -13,6 +13,7 @@ import { ConsentModal } from "./ConsentModal";
 import { usePortrait } from "../hooks/usePortrait";
 import { useCvDocument } from '../hooks/useCvDocument';
 import { PortraitEditorProvider } from '../contexts/PortraitEditorContext';
+import { ConsentEditorProvider } from '../contexts/ConsentEditorContext';
 import { atsFilename } from '../pdf/atsPdf';
 import { ReadinessPanel } from './ReadinessPanel';
 import {
@@ -101,7 +102,11 @@ function CVContentInner({ showControls = true }: CVContentProps) {
             <CVEducation />
             <CVCertificates />
             <CVLanguages />
-            <CVFooter />
+            {/* Editable here and inert in Submitting, for the reason the
+                portrait above is wrapped the same way. */}
+            <ConsentEditorProvider onEdit={() => setIsConsentOpen(true)}>
+              <CVFooter />
+            </ConsentEditorProvider>
           </CVLayout>
 
           {showControls && <ReadinessPanel document={document} docked />}
@@ -243,8 +248,10 @@ function CVContentInner({ showControls = true }: CVContentProps) {
 }
 
 /**
- * Main CV content component with real data from translations.
- * Renders Dominik Beń's CV in Paginated (A4) format.
+ * The master CV, paginated to A4.
+ *
+ * Whatever document the store holds for the current language — the sample CV in
+ * `./seed` until somebody edits or imports over it.
  */
 export function CVContent(props: CVContentProps) {
   return <CVContentInner {...props} />;
